@@ -71,7 +71,8 @@
     font-size: 13px; color: var(--dim);
   }
   #diff b { color: var(--ink); }
-#menu { position: fixed; inset: 0; margin: auto; width: 330px; max-height: 92vh; height: fit-content;
+#menu { pointer-events: auto;   /* #hud מבטל לחיצות, והתפריט יושב בתוכו */
+        position: fixed; inset: 0; margin: auto; width: 330px; max-height: 92vh; height: fit-content;
         overflow-y: auto; background: #101a26; border: 1px solid #2a3b4f; border-radius: 16px;
         padding: 20px; z-index: 7; display: none; flex-direction: column; gap: 13px;
         text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,.65); }
