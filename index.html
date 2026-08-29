@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>פינג פונג תלת ממדי</title>
+<style>
+  :root {
+    --ink: #eaf2ff;
+    --dim: #93a7c4;
+    --accent: #4dd6a0;
+    --rival: #ff6b6b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #05070d; }
+  body {
+    font-family: "Segoe UI", "Arial Hebrew", Arial, sans-serif;
+    color: var(--ink);
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: none;
+  }
+  #gl { display: block; width: 100%; height: 100%; cursor: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+
+  #score {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 18px;
+    padding: 10px 22px; border-radius: 14px;
+    background: rgba(8, 14, 26, 0.62);
+    border: 1px solid rgba(140, 175, 225, 0.18);
+    backdrop-filter: blur(6px);
+  }
+  #score .side { text-align: center; min-width: 78px; }
+  #score .label { font-size: 12px; letter-spacing: 1px; color: var(--dim); }
+  #score .num { font-size: 34px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  #score .me .num { color: var(--accent); }
+  #score .cpu .num { color: var(--rival); }
+  #score .sep { font-size: 20px; color: var(--dim); }
+
+  #serveDot {
+    display: block; width: 8px; height: 8px; border-radius: 50%;
+    margin: 4px auto 0; background: transparent;
+  }
+  #score .serving #serveDot { background: currentColor; }
+  #score .me.serving #serveDot { background: var(--accent); }
+  #score .cpu.serving #serveDot { background: var(--rival); }
+
+  #center {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center; width: min(560px, 88vw);
+  }
+  #title { font-size: clamp(28px, 6vw, 52px); font-weight: 800; letter-spacing: 1px; }
+  #title span { color: var(--accent); }
+  #msg { margin-top: 14px; font-size: clamp(15px, 2.6vw, 20px); color: var(--dim); line-height: 1.7; }
+  #msg b { color: var(--ink); font-weight: 600; }
+  #center.hidden { display: none; }
+
+  #hint {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: var(--dim); text-align: center; line-height: 1.6;
+  }
+  kbd {
+    display: inline-block; padding: 1px 7px; border-radius: 5px;
+    border: 1px solid rgba(150, 180, 225, 0.3); background: rgba(255,255,255,0.05);
+    font-family: inherit; font-size: 12px;
+  }
+  #diff {
+    position: absolute; top: 18px; right: 18px;
+    font-size: 13px; color: var(--dim);
+  }
+  #diff b { color: var(--ink); }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="hud">
+  <div id="score">
+    <div class="side me" id="sideMe">
+      <div class="label">אתה</div>
+      <div class="num" id="scoreMe">0</div>
+      <i id="serveDot"></i>
+    </div>
+    <div class="sep">:</div>
+    <div class="side cpu" id="sideCpu">
+      <div class="label">מחשב</div>
+      <div class="num" id="scoreCpu">0</div>
+    </div>
+  </div>
+
+  <div id="diff">רמה: <b id="diffName">בינוני</b> <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></div>
+
+  <div id="center">
+    <div id="title">פינג <span>פונג</span> 3D</div>
+    <div id="msg"></div>
+  </div>
+
+  <div id="hint">
+    עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>R</kbd> משחק חדש &nbsp;·&nbsp; <kbd>M</kbd> צליל
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------------------------------------------------------- math ---- */
+const V = {
+  sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+  cross: (a, b) => [a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0]],
+  dot: (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2],
+  norm: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0]/l, a[1]/l, a[2]/l]; }
+};
+
+const M4 = {
+  ident() { return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); },
+  mul(a, b) {
+    const o = new Float32Array(16);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+      o[c*4+r] = a[r]*b[c*4] + a[4+r]*b[c*4+1] + a[8+r]*b[c*4+2] + a[12+r]*b[c*4+3];
+    }
+    return o;
+  },
+  chain(...ms) { return ms.reduce((a, b) => M4.mul(a, b)); },
+  trans(x, y, z) { const m = M4.ident(); m[12] = x; m[13] = y; m[14] = z; return m; },
+  scale(x, y, z) { const m = M4.ident(); m[0] = x; m[5] = y; m[10] = z; return m; },
+  rotX(a) { const m = M4.ident(), c = Math.cos(a), s = Math.sin(a); m[5] = c; m[6] = s; m[9] = -s; m[10] = c; return m; },
+  rotY(a) { const m = M4.ident(), c = Math.cos(a), s = Math.sin(a); m[0] = c; m[2] = -s; m[8] = s; m[10] = c; return m; },
+  rotZ(a) { const m = M4.ident(), c = Math.cos(a), s = Math.sin(a); m[0] = c; m[1] = s; m[4] = -s; m[5] = c; return m; },
+  persp(fovy, aspect, near, far) {
+    const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+    const m = new Float32Array(16);
+    m[0] = f / aspect; m[5] = f; m[10] = (far + near) * nf; m[11] = -1; m[14] = 2 * far * near * nf;
+    return m;
+  },
+  lookAt(eye, center, up) {
+    const z = V.norm(V.sub(eye, center));
+    const x = V.norm(V.cross(up, z));
+    const y = V.cross(z, x);
+    return new Float32Array([
+      x[0], y[0], z[0], 0,
+      x[1], y[1], z[1], 0,
+      x[2], y[2], z[2], 0,
+      -V.dot(x, eye), -V.dot(y, eye), -V.dot(z, eye), 1
+    ]);
+  },
+  normalMat3(m) {
+    const a = m[0], b = m[1], c = m[2], d = m[4], e = m[5], f = m[6], g = m[8], h = m[9], i = m[10];
+    const A =  (e*i - f*h), B = -(d*i - f*g), C =  (d*h - e*g);
+    const det = a*A + b*B + c*C || 1e-8, id = 1 / det;
+    // inverse(3x3) transposed == cofactor matrix / det, laid out column-major
+    return new Float32Array([
+      A*id, B*id, C*id,
+      -(b*i - c*h)*id, (a*i - c*g)*id, -(a*h - b*g)*id,
+      (b*f - c*e)*id, -(a*f - c*d)*id, (a*e - b*d)*id
+    ]);
+  }
+};
+
+const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/* ------------------------------------------------------------- gl ---- */
+const canvas = document.getElementById("gl");
+const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
+if (!gl) {
+  document.getElementById("msg").textContent = "הדפדפן הזה לא תומך ב-WebGL.";
+  throw new Error("no webgl");
+}
+
+const VERT = `
+attribute vec3 aPos;
+attribute vec3 aNormal;
+uniform mat4 uProj, uView, uModel;
+uniform mat3 uNrm;
+varying vec3 vN, vP;
+void main() {
+  vec4 wp = uModel * vec4(aPos, 1.0);
+  vP = wp.xyz;
+  vN = uNrm * aNormal;
+  gl_Position = uProj * uView * wp;
+}`;
+
+const FRAG = `
+precision mediump float;
+varying vec3 vN, vP;
+uniform vec3 uColor, uCam;
+uniform float uAlpha, uSpec, uAmbient;
+void main() {
+  vec3 N = normalize(vN);
+  vec3 L = normalize(vec3(0.35, 1.0, 0.45));
+  vec3 L2 = normalize(vec3(-0.6, 0.55, -0.5));
+  float d = max(dot(N, L), 0.0) + 0.28 * max(dot(N, L2), 0.0);
+  vec3 Vv = normalize(uCam - vP);
+  vec3 H = normalize(L + Vv);
+  float s = pow(max(dot(N, H), 0.0), 42.0) * uSpec;
+  vec3 col = uColor * (uAmbient + 0.85 * d) + vec3(s);
+  float fog = clamp((length(uCam - vP) - 5.0) / 11.0, 0.0, 0.6);
+  col = mix(col, vec3(0.02, 0.03, 0.06), fog);
+  gl_FragColor = vec4(col, uAlpha);
+}`;
+
+function compile(src, type) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh));
+  return sh;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(VERT, gl.VERTEX_SHADER));
+gl.attachShader(prog, compile(FRAG, gl.FRAGMENT_SHADER));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+
+const A = {
+  pos: gl.getAttribLocation(prog, "aPos"),
+  nrm: gl.getAttribLocation(prog, "aNormal")
+};
+const U = {};
+for (const n of ["uProj", "uView", "uModel", "uNrm", "uColor", "uCam", "uAlpha", "uSpec", "uAmbient"]) {
+  U[n] = gl.getUniformLocation(prog, n);
+}
+
+function makeMesh(positions, normals, indices) {
+  const mesh = {
+    pos: gl.createBuffer(),
+    nrm: gl.createBuffer(),
+    idx: gl.createBuffer(),
+    count: indices.length
+  };
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.pos);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.nrm);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.idx);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+  return mesh;
+}
+
+function boxMesh() {
+  const p = [], n = [], i = [];
+  const faces = [
+    [[ 1, 0, 0], [0, 0, 1], [0, 1, 0]],
+    [[-1, 0, 0], [0, 0,-1], [0, 1, 0]],
+    [[ 0, 1, 0], [1, 0, 0], [0, 0, 1]],
+    [[ 0,-1, 0], [1, 0, 0], [0, 0,-1]],
+    [[ 0, 0, 1], [-1,0, 0], [0, 1, 0]],
+    [[ 0, 0,-1], [1, 0, 0], [0, 1, 0]]
+  ];
+  for (const [nr, u, v] of faces) {
+    const base = p.length / 3;
+    for (const [su, sv] of [[-1,-1],[1,-1],[1,1],[-1,1]]) {
+      p.push(
+        (nr[0] + u[0]*su + v[0]*sv) * 0.5,
+        (nr[1] + u[1]*su + v[1]*sv) * 0.5,
+        (nr[2] + u[2]*su + v[2]*sv) * 0.5
+      );
+      n.push(nr[0], nr[1], nr[2]);
+    }
+    i.push(base, base+1, base+2, base, base+2, base+3);
+  }
+  return makeMesh(p, n, i);
+}
+
+function sphereMesh(seg = 22, rings = 16) {
+  const p = [], n = [], i = [];
+  for (let y = 0; y <= rings; y++) {
+    const phi = y / rings * Math.PI;
+    for (let x = 0; x <= seg; x++) {
+      const th = x / seg * Math.PI * 2;
+      const nx = Math.sin(phi) * Math.cos(th), ny = Math.cos(phi), nz = Math.sin(phi) * Math.sin(th);
+      p.push(nx * 0.5, ny * 0.5, nz * 0.5);
+      n.push(nx, ny, nz);
+    }
+  }
+  for (let y = 0; y < rings; y++) for (let x = 0; x < seg; x++) {
+    const a = y * (seg + 1) + x, b = a + seg + 1;
+    i.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  return makeMesh(p, n, i);
+}
+
+// cylinder with its axis along Z, radius 0.5, length 1
+function cylMesh(seg = 30) {
+  const p = [], n = [], i = [];
+  for (let k = 0; k < seg; k++) {
+    const th = k / seg * Math.PI * 2, c = Math.cos(th), s = Math.sin(th);
+    const base = p.length / 3;
+    p.push(c*0.5, s*0.5, -0.5, c*0.5, s*0.5, 0.5);
+    n.push(c, s, 0, c, s, 0);
+    const nk = (k + 1) % seg, c2 = Math.cos(nk / seg * Math.PI * 2), s2 = Math.sin(nk / seg * Math.PI * 2);
+    p.push(c2*0.5, s2*0.5, -0.5, c2*0.5, s2*0.5, 0.5);
+    n.push(c2, s2, 0, c2, s2, 0);
+    i.push(base, base+2, base+1, base+1, base+2, base+3);
+  }
+  for (const zSign of [-1, 1]) {
+    const center = p.length / 3;
+    p.push(0, 0, zSign * 0.5); n.push(0, 0, zSign);
+    for (let k = 0; k <= seg; k++) {
+      const th = k / seg * Math.PI * 2;
+      p.push(Math.cos(th)*0.5, Math.sin(th)*0.5, zSign*0.5);
+      n.push(0, 0, zSign);
+    }
+    for (let k = 1; k <= seg; k++) {
+      if (zSign > 0) i.push(center, center + k, center + k + 1);
+      else i.push(center, center + k + 1, center + k);
+    }
+  }
+  return makeMesh(p, n, i);
+}
+
+const MESH = { box: boxMesh(), sphere: sphereMesh(), cyl: cylMesh() };
+
+function draw(mesh, model, color, opts = {}) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.pos);
+  gl.vertexAttribPointer(A.pos, 3, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(A.pos);
+  gl.bindBuffer(gl.ARRAY_BUFFER, mesh.nrm);
+  gl.vertexAttribPointer(A.nrm, 3, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(A.nrm);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mesh.idx);
+  gl.uniformMatrix4fv(U.uModel, false, model);
+  gl.uniformMatrix3fv(U.uNrm, false, M4.normalMat3(model));
+  gl.uniform3fv(U.uColor, color);
+  gl.uniform1f(U.uAlpha, opts.alpha === undefined ? 1 : opts.alpha);
+  gl.uniform1f(U.uSpec, opts.spec === undefined ? 0.25 : opts.spec);
+  gl.uniform1f(U.uAmbient, opts.ambient === undefined ? 0.34 : opts.ambient);
+  gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_SHORT, 0);
+}
+
+const rgb = (hex) => [
+  ((hex >> 16) & 255) / 255,
+  ((hex >> 8) & 255) / 255,
+  (hex & 255) / 255
+];
+
+const COLOR = {
+  floor: rgb(0x27304a),
+  table: rgb(0x14548c),
+  line: rgb(0xf5f9ff),
+  leg: rgb(0x2a3243),
+  net: rgb(0xdfe8f5),
+  tape: rgb(0xffffff),
+  ball: rgb(0xfff3cf),
+  padMe: rgb(0xe23b3b),
+  padCpu: rgb(0x3d6fe0),
+  rubber: rgb(0x101318),
+  wood: rgb(0xc09257),
+  shadow: rgb(0x000000)
+};
+
+/* ---------------------------------------------------------- world ---- */
+const TABLE_L = 2.74;
+const TABLE_W = 1.525;
+const TABLE_TOP = 0.76;
+const NET_H = 0.1525;
+const BALL_R = 0.032;
+const PAD_R = 0.088;
+const PAD_T = 0.024;
+const PLAYER_Z = 1.62;
+const CPU_Z = -1.62;
+const GRAVITY = 7.2;
+
+const HALF_W = TABLE_W / 2;
+const HALF_L = TABLE_L / 2;
+
+const DIFFS = [
+  { name: "קל",    speed: 2.1, err: 0.34, react: 0.45, flight: 0.72 },
+  { name: "בינוני", speed: 3.2, err: 0.18, react: 0.72, flight: 0.62 },
+  { name: "קשה",   speed: 4.4, err: 0.07, react: 0.92, flight: 0.54 }
+];
+
+const game = {
+  diff: 1,
+  scoreMe: 0,
+  scoreCpu: 0,
+  server: "me",
+  servesLeft: 2,
+  phase: "intro",       // intro | serve | rally | point | over
+  timer: 0,
+  lastHit: null,
+  bounceSide: null,
+  rallyCount: 0,
+  winner: null
+};
+
+const ball = { p: [0, 0.3, 1.2], v: [0, 0, 0], spin: 0, rot: 0 };
+const me = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0 };
+const cpu = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0, think: 0 };
+
+/* ---------------------------------------------------------- audio ---- */
+let audioCtx = null, soundOn = true;
+function beep(freq, dur, gainPeak, type = "sine") {
+  if (!soundOn) return;
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = new AC();
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(60, freq * 0.6), t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gainPeak, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
+}
+const sfx = {
+  paddle: () => beep(680, 0.09, 0.22, "triangle"),
+  table:  () => beep(1250, 0.05, 0.13, "sine"),
+  net:    () => beep(220, 0.14, 0.16, "sawtooth"),
+  point:  () => beep(420, 0.22, 0.18, "square"),
+  win:    () => { beep(660, 0.16, 0.2, "square"); setTimeout(() => beep(880, 0.3, 0.2, "square"), 150); }
+};
+
+/* --------------------------------------------------------- input ---- */
+const keys = new Set();
+
+function setPaddleFromPointer(cx, cy) {
+  const rect = canvas.getBoundingClientRect();
+  const nx = (cx - rect.left) / rect.width;
+  const ny = (cy - rect.top) / rect.height;
+  me.tx = clamp((nx - 0.5) * (TABLE_W + 0.55), -HALF_W - 0.42, HALF_W + 0.42);
+  me.ty = clamp(0.62 - ny * 0.72, 0.03, 0.62);
+}
+
+canvas.addEventListener("mousemove", (e) => setPaddleFromPointer(e.clientX, e.clientY));
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+  setPaddleFromPointer(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: false });
+canvas.addEventListener("touchstart", (e) => {
+  setPaddleFromPointer(e.touches[0].clientX, e.touches[0].clientY);
+  action();
+}, { passive: true });
+canvas.addEventListener("mousedown", action);
+
+window.addEventListener("keydown", (e) => {
+  keys.add(e.code);
+  if (e.code === "Space") { e.preventDefault(); action(); }
+  if (e.code === "KeyR") resetMatch();
+  if (e.code === "KeyM") { soundOn = !soundOn; }
+  if (e.code === "Digit1") setDiff(0);
+  if (e.code === "Digit2") setDiff(1);
+  if (e.code === "Digit3") setDiff(2);
+});
+window.addEventListener("keyup", (e) => keys.delete(e.code));
+
+function action() {
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  if (game.phase === "intro") { startMatch(); return; }
+  if (game.phase === "over") { resetMatch(); return; }
+  if (game.phase === "serve" && game.server === "me") serve("me");
+}
+
+function setDiff(i) {
+  game.diff = i;
+  document.getElementById("diffName").textContent = DIFFS[i].name;
+  resetMatch();
+}
+
+/* ---------------------------------------------------- game control ---- */
+function startMatch() {
+  game.phase = "serve";
+  game.timer = 0;
+  prepServe();
+  updateHud();
+}
+
+function resetMatch() {
+  game.scoreMe = 0;
+  game.scoreCpu = 0;
+  game.server = "me";
+  game.servesLeft = 2;
+  game.winner = null;
+  game.rallyCount = 0;
+  game.phase = "serve";
+  game.timer = 0;
+  prepServe();
+  updateHud();
+}
+
+function prepServe() {
+  game.lastHit = null;
+  game.bounceSide = null;
+  game.rallyCount = 0;
+  ball.v = [0, 0, 0];
+  ball.spin = 0;
+  if (game.server === "me") {
+    ball.p = [me.x, 0.34, PLAYER_Z - 0.22];
+  } else {
+    cpu.tx = (Math.random() - 0.5) * 0.7;
+    ball.p = [cpu.x, 0.34, CPU_Z + 0.22];
+    game.timer = 1.0;
+  }
+}
+
+function serve(who) {
+  const d = DIFFS[game.diff];
+  const dir = who === "me" ? -1 : 1;
+  const targetZ = dir * (0.35 + Math.random() * 0.85);
+  const targetX = clamp((who === "me" ? me.x : cpu.x) * 0.5 + (Math.random() - 0.5) * 0.7, -HALF_W + 0.1, HALF_W - 0.1);
+  const T = who === "me" ? 0.55 : d.flight * 0.85;
+  launch(targetX, targetZ, T);
+  game.lastHit = who;
+  game.bounceSide = null;
+  game.phase = "rally";
+  sfx.paddle();
+  if (who === "me") me.swing = 1; else cpu.swing = 1;
+  updateHud();
+}
+
+// give the ball a velocity that lands it near (targetX, targetZ) after ~T seconds,
+// raising the arc when needed so the ball still clears the net
+function launch(targetX, targetZ, T) {
+  const [x0, y0, z0] = ball.p;
+  const flightOf = (v) => (v + Math.sqrt(Math.max(0, v * v + 2 * GRAVITY * (y0 - BALL_R)))) / GRAVITY;
+  let vy = (BALL_R - y0) / T + 0.5 * GRAVITY * T;
+
+  if ((z0 > 0) !== (targetZ > 0)) {
+    const need = NET_H + BALL_R + 0.05;
+    for (let i = 0; i < 3; i++) {
+      const tNet = -z0 * flightOf(vy) / (targetZ - z0);
+      const yNet = y0 + vy * tNet - 0.5 * GRAVITY * tNet * tNet;
+      if (yNet >= need) break;
+      vy = (need - y0 + 0.5 * GRAVITY * tNet * tNet) / tNet;
+    }
+  }
+
+  const flight = flightOf(vy);
+  ball.v[0] = (targetX - x0) / flight;
+  ball.v[1] = vy;
+  ball.v[2] = (targetZ - z0) / flight;
+}
+
+function scorePoint(who) {
+  if (game.phase !== "rally" && game.phase !== "serve") return;
+  if (who === "me") game.scoreMe++; else game.scoreCpu++;
+  game.phase = "point";
+  game.timer = 1.15;
+  sfx.point();
+
+  const a = game.scoreMe, b = game.scoreCpu;
+  if ((a >= 11 || b >= 11) && Math.abs(a - b) >= 2) {
+    game.winner = a > b ? "me" : "cpu";
+    game.phase = "over";
+    sfx.win();
+  } else {
+    // serve alternates every 2 points (every point from 10-10)
+    game.servesLeft--;
+    const deuce = a >= 10 && b >= 10;
+    if (game.servesLeft <= 0 || deuce) {
+      game.server = game.server === "me" ? "cpu" : "me";
+      game.servesLeft = deuce ? 1 : 2;
+    }
+  }
+  updateHud();
+}
+
+/* -------------------------------------------------------- physics ---- */
+function onTable(x, z, pad = 0.015) {
+  return Math.abs(x) <= HALF_W + pad && Math.abs(z) <= HALF_L + pad;
+}
+
+function hitByPaddle(pad, padZ, isMe) {
+  const d = DIFFS[game.diff];
+  const dx = ball.p[0] - pad.x;
+  const dy = ball.p[1] - pad.y;
+  const off = Math.hypot(dx, dy);
+  const reach = PAD_R + BALL_R + (isMe ? 0.035 : 0);
+  if (off > reach) return false;
+
+  const power = 1 - clamp(off / reach, 0, 1) * 0.55;
+  const speedUp = Math.min(1 + game.rallyCount * 0.012, 1.45);
+  const baseT = (isMe ? 0.60 : d.flight) / speedUp;
+  const T = clamp(baseT * (1.28 - 0.42 * power), 0.36, 0.85);
+
+  const dirZ = isMe ? -1 : 1;
+  let aimX = clamp(dx * 5.2 + (isMe ? 0 : (Math.random() - 0.5) * 0.9), -HALF_W + 0.08, HALF_W - 0.08);
+  if (!isMe) aimX = clamp(aimX + (Math.random() - 0.5) * d.err * 2, -HALF_W + 0.08, HALF_W - 0.08);
+  const aimZ = dirZ * (0.3 + Math.random() * 0.9);
+
+  ball.p[2] = padZ + dirZ * (BALL_R + 0.005);
+  launch(aimX, aimZ, T);
+  ball.spin = dx * 3.0;
+
+  game.lastHit = isMe ? "me" : "cpu";
+  game.bounceSide = null;
+  game.rallyCount++;
+  pad.swing = 1;
+  sfx.paddle();
+  return true;
+}
+
+function step(dt) {
+  const prevZ = ball.p[2];
+
+  ball.v[1] -= GRAVITY * dt;
+  ball.v[0] += ball.spin * 0.35 * dt;
+  ball.p[0] += ball.v[0] * dt;
+  ball.p[1] += ball.v[1] * dt;
+  ball.p[2] += ball.v[2] * dt;
+  ball.rot += Math.hypot(ball.v[0], ball.v[2]) * dt * 6;
+
+  // table bounce
+  if (ball.p[1] - BALL_R <= 0 && ball.v[1] < 0 && onTable(ball.p[0], ball.p[2])) {
+    const side = ball.p[2] > 0 ? "me" : "cpu";
+    // two bounces on the same side without a return: that side loses the point
+    if (game.bounceSide === side) { scorePoint(side === "me" ? "cpu" : "me"); return; }
+    game.bounceSide = side;
+    ball.p[1] = BALL_R;
+    ball.v[1] = -ball.v[1] * 0.74;
+    ball.v[0] *= 0.6;
+    ball.v[2] *= 0.985;
+    ball.spin *= 0.6;
+    if (Math.abs(ball.v[1]) > 0.4) sfx.table();
+  }
+
+  // net
+  if ((prevZ > 0 && ball.p[2] <= 0) || (prevZ < 0 && ball.p[2] >= 0)) {
+    if (ball.p[1] - BALL_R < NET_H && Math.abs(ball.p[0]) < HALF_W + 0.07) {
+      ball.p[2] = prevZ > 0 ? 0.012 : -0.012;
+      ball.v[2] = -ball.v[2] * 0.28;
+      ball.v[0] *= 0.35;
+      ball.v[1] *= 0.35;
+      sfx.net();
+    }
+  }
+
+  // paddles
+  if (ball.v[2] > 0 && prevZ < PLAYER_Z && ball.p[2] >= PLAYER_Z - BALL_R) {
+    if (game.lastHit !== "me") hitByPaddle(me, PLAYER_Z, true);
+  }
+  if (ball.v[2] < 0 && prevZ > CPU_Z && ball.p[2] <= CPU_Z + BALL_R) {
+    if (game.lastHit !== "cpu") hitByPaddle(cpu, CPU_Z, false);
+  }
+
+  // out of play
+  if (ball.p[2] > PLAYER_Z + 0.35) { scorePoint("cpu"); return; }
+  if (ball.p[2] < CPU_Z - 0.35) { scorePoint("me"); return; }
+  if (ball.p[1] < -0.55) { scorePoint(ball.p[2] > 0 ? "cpu" : "me"); return; }
+  if (Math.abs(ball.p[0]) > HALF_W + 0.9) { scorePoint(game.lastHit === "me" ? "cpu" : "me"); }
+}
+
+/* -------------------------------------------------------- ai/aim ---- */
+function predictBallX(atZ) {
+  // lightweight forward simulation of the current ball state
+  let x = ball.p[0], y = ball.p[1], z = ball.p[2];
+  let vx = ball.v[0], vy = ball.v[1], vz = ball.v[2];
+  const h = 1 / 120;
+  for (let i = 0; i < 320; i++) {
+    if (vz >= 0) break;
+    vy -= GRAVITY * h;
+    x += vx * h; y += vy * h; z += vz * h;
+    if (y - BALL_R <= 0 && vy < 0 && onTable(x, z)) { y = BALL_R; vy = -vy * 0.74; vx *= 0.6; }
+    if (z <= atZ) return { x, y: clamp(y, 0.05, 0.55) };
+  }
+  return null;
+}
+
+function updateCpu(dt) {
+  const d = DIFFS[game.diff];
+  const incoming = game.phase === "rally" && ball.v[2] < 0 && game.lastHit === "me";
+
+  cpu.think -= dt;
+  if (incoming) {
+    if (cpu.think <= 0) {
+      const hit = predictBallX(CPU_Z);
+      if (hit) {
+        cpu.tx = clamp(hit.x + (Math.random() - 0.5) * d.err, -HALF_W - 0.22, HALF_W + 0.22);
+        cpu.ty = clamp(hit.y, 0.05, 0.55);
+      }
+      cpu.think = (1 - d.react) * 0.22;
+    }
+  } else if (game.phase !== "rally") {
+    cpu.tx = lerp(cpu.tx, 0, dt * 2);
+    cpu.ty = lerp(cpu.ty, 0.16, dt * 2);
+  }
+
+  const maxStep = d.speed * dt;
+  const dx = clamp(cpu.tx - cpu.x, -maxStep, maxStep);
+  const dy = clamp(cpu.ty - cpu.y, -maxStep, maxStep);
+  cpu.x += dx;
+  cpu.y += dy;
+  cpu.tilt = clamp(dx * 6, -0.5, 0.5);
+}
+
+function updateMe(dt) {
+  const kSpeed = 1.9 * dt;
+  if (keys.has("ArrowLeft") || keys.has("KeyA")) { me.tx -= kSpeed; }
+  if (keys.has("ArrowRight") || keys.has("KeyD")) { me.tx += kSpeed; }
+  if (keys.has("ArrowUp") || keys.has("KeyW")) { me.ty += kSpeed; }
+  if (keys.has("ArrowDown") || keys.has("KeyS")) { me.ty -= kSpeed; }
+  me.tx = clamp(me.tx, -HALF_W - 0.42, HALF_W + 0.42);
+  me.ty = clamp(me.ty, 0.03, 0.62);
+
+  const k = 1 - Math.pow(1e-8, dt);
+  const prevX = me.x;
+  me.x = lerp(me.x, me.tx, k);
+  me.y = lerp(me.y, me.ty, k);
+  me.tilt = clamp((me.x - prevX) * 5, -0.6, 0.6);
+}
+
+/* ----------------------------------------------------------- hud ---- */
+const el = {
+  scoreMe: document.getElementById("scoreMe"),
+  scoreCpu: document.getElementById("scoreCpu"),
+  sideMe: document.getElementById("sideMe"),
+  sideCpu: document.getElementById("sideCpu"),
+  center: document.getElementById("center"),
+  title: document.getElementById("title"),
+  msg: document.getElementById("msg")
+};
+
+function updateHud() {
+  el.scoreMe.textContent = game.scoreMe;
+  el.scoreCpu.textContent = game.scoreCpu;
+  el.sideMe.classList.toggle("serving", game.server === "me");
+  el.sideCpu.classList.toggle("serving", game.server === "cpu");
+
+  if (game.phase === "intro") {
+    el.center.classList.remove("hidden");
+    el.title.innerHTML = 'פינג <span>פונג</span> 3D';
+    el.msg.innerHTML = 'הזז את העכבר כדי לשלוט במחבט.<br>לחץ <b>רווח</b> או קליק כדי להתחיל. המשחק עד <b>11</b> נקודות.';
+  } else if (game.phase === "over") {
+    el.center.classList.remove("hidden");
+    el.title.innerHTML = game.winner === "me" ? 'ניצחת! <span>🏓</span>' : 'המחשב ניצח';
+    el.msg.innerHTML = `התוצאה <b>${game.scoreMe} : ${game.scoreCpu}</b><br>לחץ <b>רווח</b> למשחק חדש.`;
+  } else if (game.phase === "serve" && game.server === "me") {
+    el.center.classList.remove("hidden");
+    el.title.innerHTML = '';
+    el.msg.innerHTML = 'התור שלך להגיש — לחץ <b>רווח</b>';
+  } else {
+    el.center.classList.add("hidden");
+  }
+}
+
+/* ---------------------------------------------------------- scene ---- */
+function drawTable() {
+  // floor
+  draw(MESH.box, M4.chain(M4.trans(0, -TABLE_TOP - 0.04, 0), M4.scale(24, 0.08, 24)),
+       COLOR.floor, { spec: 0.02, ambient: 0.5 });
+
+  // playing surface
+  draw(MESH.box, M4.chain(M4.trans(0, -0.021, 0), M4.scale(TABLE_W, 0.042, TABLE_L)),
+       COLOR.table, { spec: 0.35, ambient: 0.4 });
+
+  // white edge band
+  const band = 0.02;
+  draw(MESH.box, M4.chain(M4.trans(0, 0.0022, HALF_L - band / 2), M4.scale(TABLE_W, 0.002, band)), COLOR.line, { spec: 0.1 });
+  draw(MESH.box, M4.chain(M4.trans(0, 0.0022, -HALF_L + band / 2), M4.scale(TABLE_W, 0.002, band)), COLOR.line, { spec: 0.1 });
+  draw(MESH.box, M4.chain(M4.trans(HALF_W - band / 2, 0.0022, 0), M4.scale(band, 0.002, TABLE_L)), COLOR.line, { spec: 0.1 });
+  draw(MESH.box, M4.chain(M4.trans(-HALF_W + band / 2, 0.0022, 0), M4.scale(band, 0.002, TABLE_L)), COLOR.line, { spec: 0.1 });
+  // centre line
+  draw(MESH.box, M4.chain(M4.trans(0, 0.0022, 0), M4.scale(0.012, 0.002, TABLE_L)), COLOR.line, { spec: 0.1 });
+
+  // legs
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    draw(MESH.box, M4.chain(
+      M4.trans(sx * (HALF_W - 0.1), -TABLE_TOP / 2 - 0.02, sz * (HALF_L - 0.18)),
+      M4.scale(0.06, TABLE_TOP, 0.06)
+    ), COLOR.leg, { spec: 0.1, ambient: 0.3 });
+  }
+
+  // net posts (opaque)
+  for (const sx of [-1, 1]) {
+    draw(MESH.box, M4.chain(M4.trans(sx * (TABLE_W / 2 + 0.08), NET_H / 2, 0), M4.scale(0.014, NET_H + 0.02, 0.014)),
+         COLOR.tape, { spec: 0.2, ambient: 0.5 });
+  }
+}
+
+function drawNet() {
+  draw(MESH.box, M4.chain(M4.trans(0, NET_H / 2 - 0.006, 0), M4.scale(TABLE_W + 0.16, NET_H - 0.012, 0.004)),
+       COLOR.net, { alpha: 0.26, spec: 0.05, ambient: 0.8 });
+  draw(MESH.box, M4.chain(M4.trans(0, NET_H, 0), M4.scale(TABLE_W + 0.17, 0.012, 0.01)),
+       COLOR.tape, { alpha: 0.95, spec: 0.2, ambient: 0.6 });
+}
+
+function drawPaddle(pad, z, faceColor, isMe) {
+  const yaw = isMe ? 0 : Math.PI;
+  const base = M4.chain(M4.trans(pad.x, pad.y, z), M4.rotY(yaw), M4.rotZ(pad.tilt), M4.rotX(pad.swing * 0.6));
+  // blade
+  draw(MESH.cyl, M4.mul(base, M4.scale(PAD_R * 2, PAD_R * 2, PAD_T)), COLOR.rubber, { spec: 0.12, ambient: 0.32 });
+  // rubber faces
+  draw(MESH.cyl, M4.mul(base, M4.chain(M4.trans(0, 0, -PAD_T * 0.62), M4.scale(PAD_R * 1.94, PAD_R * 1.94, PAD_T * 0.3))),
+       faceColor, { spec: 0.3, ambient: 0.36 });
+  draw(MESH.cyl, M4.mul(base, M4.chain(M4.trans(0, 0, PAD_T * 0.62), M4.scale(PAD_R * 1.94, PAD_R * 1.94, PAD_T * 0.3))),
+       faceColor, { spec: 0.3, ambient: 0.36 });
+  // handle
+  draw(MESH.box, M4.mul(base, M4.chain(M4.trans(0, -PAD_R - 0.055, 0), M4.scale(0.034, 0.12, PAD_T * 1.5))),
+       COLOR.wood, { spec: 0.18, ambient: 0.36 });
+}
+
+function drawBall() {
+  draw(MESH.sphere, M4.chain(
+    M4.trans(ball.p[0], ball.p[1], ball.p[2]),
+    M4.rotY(ball.rot * 0.6), M4.rotX(ball.rot),
+    M4.scale(BALL_R * 2, BALL_R * 2, BALL_R * 2)
+  ), COLOR.ball, { spec: 0.75, ambient: 0.5 });
+}
+
+function drawShadow() {
+  const over = onTable(ball.p[0], ball.p[2], 0.06);
+  const groundY = over ? 0.004 : -TABLE_TOP + 0.005;
+  const h = clamp(ball.p[1] - groundY, 0, 1.6);
+  const spread = 1 + h * 1.6;
+  const alpha = clamp(0.4 - h * 0.24, 0.04, 0.4);
+  draw(MESH.sphere, M4.chain(
+    M4.trans(ball.p[0], groundY, ball.p[2]),
+    M4.scale(BALL_R * 2.1 * spread, 0.001, BALL_R * 2.1 * spread)
+  ), COLOR.shadow, { alpha, spec: 0, ambient: 1 });
+}
+
+/* ----------------------------------------------------------- loop ---- */
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.floor(canvas.clientWidth * dpr);
+  const h = Math.floor(canvas.clientHeight * dpr);
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+}
+window.addEventListener("resize", resize);
+
+let last = performance.now();
+
+function frame(now) {
+  let dt = (now - last) / 1000;
+  last = now;
+  dt = Math.min(dt, 0.05);
+
+  updateMe(dt);
+  updateCpu(dt);
+  me.swing = Math.max(0, me.swing - dt * 5);
+  cpu.swing = Math.max(0, cpu.swing - dt * 5);
+
+  if (game.phase === "rally") {
+    // fixed-step integration keeps collisions stable at any frame rate
+    let acc = dt;
+    const h = 1 / 240;
+    while (acc > 0 && game.phase === "rally") {
+      step(Math.min(h, acc));
+      acc -= h;
+    }
+  } else if (game.phase === "serve") {
+    if (game.server === "me") {
+      ball.p = [me.x, me.y + 0.10, PLAYER_Z - 0.22];
+    } else {
+      ball.p = [cpu.x, cpu.y + 0.10, CPU_Z + 0.22];
+      game.timer -= dt;
+      if (game.timer <= 0) serve("cpu");
+    }
+  } else if (game.phase === "point") {
+    game.timer -= dt;
+    ball.v[1] -= GRAVITY * dt;
+    ball.p[0] += ball.v[0] * dt;
+    ball.p[1] += ball.v[1] * dt;
+    ball.p[2] += ball.v[2] * dt;
+    if (game.timer <= 0) {
+      game.phase = "serve";
+      prepServe();
+      updateHud();
+    }
+  }
+
+  resize();
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.CULL_FACE);
+  gl.clearColor(0.02, 0.03, 0.055, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  const aspect = canvas.width / Math.max(1, canvas.height);
+  const proj = M4.persp(50 * Math.PI / 180, aspect, 0.05, 60);
+  const sway = me.x * 0.14;
+  const eye = [sway, 0.86, 3.15];
+  const view = M4.lookAt(eye, [sway * 0.4, 0.0, -0.35], [0, 1, 0]);
+
+  gl.uniformMatrix4fv(U.uProj, false, proj);
+  gl.uniformMatrix4fv(U.uView, false, view);
+  gl.uniform3fv(U.uCam, eye);
+
+  gl.disable(gl.BLEND);
+  drawTable();
+  drawPaddle(cpu, CPU_Z, COLOR.padCpu, false);
+  drawPaddle(me, PLAYER_Z, COLOR.padMe, true);
+  drawBall();
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  drawShadow();
+  drawNet();
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+
+  requestAnimationFrame(frame);
+}
+
+resize();
+updateHud();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
