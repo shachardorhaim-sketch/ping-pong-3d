@@ -70,6 +70,29 @@
     font-size: 13px; color: var(--dim);
   }
   #diff b { color: var(--ink); }
+#net { position: fixed; inset: 0; margin: auto; width: 280px; height: fit-content;
+       background: #101a26; border: 1px solid #2a3b4f; border-radius: 14px; padding: 18px;
+       z-index: 6; display: none; flex-direction: column; gap: 9px; text-align: center;
+       box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+#net.open { display: flex; }
+#net .netHead { font-size: 16px; font-weight: 800; color: #6ee7d7; margin-bottom: 4px; }
+#net button { font: inherit; font-weight: 700; font-size: 14px; padding: 9px; border: 0;
+              border-radius: 8px; background: #6ee7d7; color: #06202a; cursor: pointer; }
+#net button:hover { filter: brightness(1.08); }
+#net .netGhost { background: #26374a; color: #d7e3ee; }
+#netCodeWrap { display: none; background: #0a141d; border: 1px solid #2a3b4f; border-radius: 9px;
+               padding: 9px; font-size: 14px; color: #d7e3ee; }
+#netCodeWrap.on { display: block; }
+#netCode { font-size: 26px; letter-spacing: 5px; color: #6ee7d7; display: block; margin-top: 3px; }
+#net .netSub { font-size: 11px; color: #7f93a6; margin-top: 3px; }
+#net .netOr { font-size: 11px; color: #7f93a6; }
+#net .netJoinRow { display: flex; gap: 7px; }
+#netInput { flex: 1; background: #0a141d; border: 1px solid #2a3b4f; border-radius: 8px;
+            color: #eaf2f8; font: inherit; font-size: 17px; text-align: center;
+            letter-spacing: 4px; text-transform: uppercase; padding: 8px; min-width: 0; }
+#netStatus { font-size: 12px; color: #7f93a6; min-height: 17px; line-height: 1.4; }
+#netStatus.err { color: #ff9d7a; }
+#netStatus.ok { color: #6ee7d7; }
 #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none;
          z-index: 5; transition: opacity .06s linear; }
 </style>
@@ -95,6 +118,19 @@
   <div id="diff">רמה: <b id="diffName">בינוני</b> <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>
     &nbsp;·&nbsp; <b id="modeName">מול המחשב</b> <kbd>T</kbd>
     &nbsp;·&nbsp; ראלי שיא: <b id="bestRally">0</b></div>
+
+  <div id="net">
+    <div class="netHead">משחק אונליין</div>
+    <button id="netHost">צור חדר</button>
+    <div id="netCodeWrap">הקוד שלך: <b id="netCode">----</b><div class="netSub">תן אותו לחבר</div></div>
+    <div class="netOr">— או —</div>
+    <div class="netJoinRow">
+      <input id="netInput" maxlength="4" placeholder="קוד" autocomplete="off" dir="ltr">
+      <button id="netJoin">הצטרף</button>
+    </div>
+    <div id="netStatus"></div>
+    <button id="netClose" class="netGhost">סגור</button>
+  </div>
 
   <div id="center">
     <div id="title">פינג <span>פונג</span> 3D</div>
@@ -465,6 +501,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyR") resetMatch();
   if (e.code === "KeyM") { soundOn = !soundOn; }
   if (e.code === "KeyT") { toggleMode(); }
+  if (e.code === "KeyO") { openNet(); }
   if (e.code === "KeyP" || e.code === "Escape") { togglePause(); }
   if (e.code === "Enter" && game.mode === "local" &&
       game.phase === "serve" && game.server === "cpu") { serve("cpu"); }
@@ -474,7 +511,154 @@ window.addEventListener("keydown", (e) => {
 });
 window.addEventListener("keyup", (e) => keys.delete(e.code));
 
+/* --------------------------------------------------------- online ---- */
+/* המארח מריץ את כל הפיזיקה, האורח שולח מחבט ומצייר מה שמגיע.
+   האורח רואה את המגרש מסובב חצי סיבוב, אחרת המחבט שלו היה בצד הרחוק. */
+const net = { peer: null, conn: null, role: null, code: null, ready: false, last: 0, remote: null };
+
+const netEl = {};
+["net","netHost","netCode","netCodeWrap","netInput","netJoin","netStatus","netClose"]
+  .forEach(id => netEl[id] = document.getElementById(id));
+
+const isGuest = () => game.mode === "online" && net.role === "guest";
+const isHost  = () => game.mode === "online" && net.role === "host";
+
+function netSay(msg, cls) {
+  netEl.netStatus.textContent = msg;
+  netEl.netStatus.className = cls || "";
+}
+
+function loadPeer() {
+  if (window.Peer) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const sc = document.createElement("script");
+    sc.src = "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js";
+    sc.onload = res;
+    sc.onerror = () => rej(new Error("no-lib"));
+    document.head.appendChild(sc);
+  });
+}
+
+const ROOM_PREFIX = "flrot-pp3d-";
+function makeCode() {
+  const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";   // בלי תווים שקל להתבלבל ביניהם
+  let c = "";
+  for (let i = 0; i < 4; i++) c += A[Math.floor(Math.random() * A.length)];
+  return c;
+}
+
+function netTeardown() {
+  try { if (net.conn) net.conn.close(); } catch (e) {}
+  try { if (net.peer) net.peer.destroy(); } catch (e) {}
+  net.peer = net.conn = net.role = net.code = null;
+  net.ready = false; net.remote = null;
+}
+
+function backToOffline() {
+  netTeardown();
+  game.mode = "cpu";
+  resetMatch();
+  updateHud();
+}
+
+function wireConn(conn) {
+  net.conn = conn;
+  conn.on("open", () => {
+    net.ready = true;
+    netSay("מחובר! מתחילים.", "ok");
+    setTimeout(() => netEl.net.classList.remove("open"), 900);
+    game.mode = "online";
+    resetMatch();
+    if (isHost()) { game.phase = "serve"; prepServe(); }
+    updateHud();
+  });
+  conn.on("data", onNetData);
+  conn.on("close", () => { netSay("החיבור נסגר.", "err"); backToOffline(); });
+  conn.on("error", () => { netSay("שגיאת חיבור.", "err"); backToOffline(); });
+}
+
+async function netHost() {
+  try { await loadPeer(); } catch (e) { return netSay("לא הצלחתי לטעון את ספריית החיבור. בדוק אינטרנט.", "err"); }
+  netTeardown();
+  net.role = "host";
+  net.code = makeCode();
+  netSay("פותח חדר…");
+  net.peer = new Peer(ROOM_PREFIX + net.code);
+  net.peer.on("open", () => {
+    netEl.netCode.textContent = net.code;
+    netEl.netCodeWrap.classList.add("on");
+    netSay("ממתין שחבר יצטרף…");
+  });
+  net.peer.on("connection", wireConn);
+  net.peer.on("error", (err) => {
+    if (String(err && err.type) === "unavailable-id") { net.code = makeCode(); netHost(); return; }
+    netSay("לא הצלחתי לפתוח חדר. נסה שוב.", "err");
+  });
+}
+
+async function netJoin() {
+  const code = (netEl.netInput.value || "").trim().toUpperCase();
+  if (code.length !== 4) return netSay("צריך קוד בן 4 תווים.", "err");
+  try { await loadPeer(); } catch (e) { return netSay("לא הצלחתי לטעון את ספריית החיבור. בדוק אינטרנט.", "err"); }
+  netTeardown();
+  net.role = "guest";
+  netSay("מתחבר…");
+  net.peer = new Peer();
+  net.peer.on("open", () => wireConn(net.peer.connect(ROOM_PREFIX + code)));
+  net.peer.on("error", () => netSay("לא נמצא חדר עם הקוד הזה.", "err"));
+}
+
+function netSend(obj) {
+  if (net.conn && net.ready) { try { net.conn.send(obj); } catch (e) {} }
+}
+
+function onNetData(d) {
+  if (!d || typeof d !== "object") return;
+  if (d.t === "p" && isHost()) {
+    net.remote = [d.x, d.y];               // מחבט האורח, כבר במרחב של המארח
+  } else if (d.t === "sv" && isHost()) {
+    if (game.phase === "serve" && game.server === "cpu") serve("cpu");
+  } else if (d.t === "s" && isGuest()) {
+    ball.p[0] = -d.b[0]; ball.p[1] = d.b[1]; ball.p[2] = -d.b[2];
+    cpu.x = -d.h[0]; cpu.y = d.h[1];       // המחבט של המארח יושב מול האורח
+    game.scoreMe = d.sg; game.scoreCpu = d.sh;
+    game.phase = d.ph;
+    game.server = d.sv === "me" ? "cpu" : "me";
+    game.winner = d.w == null ? null : (d.w === "me" ? "cpu" : "me");
+    updateHud();
+  }
+}
+
+function netTick(now) {
+  if (game.mode !== "online" || !net.ready) return;
+  if (now - net.last < 33) return;         // בערך 30 עדכונים בשנייה
+  net.last = now;
+  if (isHost()) {
+    netSend({ t: "s", b: [ball.p[0], ball.p[1], ball.p[2]],
+              h: [me.x, me.y], sh: game.scoreMe, sg: game.scoreCpu,
+              ph: game.phase, sv: game.server, w: game.winner });
+  } else {
+    netSend({ t: "p", x: -me.x, y: me.y });
+  }
+}
+
+netEl.netHost.addEventListener("click", netHost);
+netEl.netJoin.addEventListener("click", netJoin);
+netEl.netInput.addEventListener("keydown", (e) => { if (e.code === "Enter") { e.stopPropagation(); netJoin(); } });
+netEl.netClose.addEventListener("click", () => {
+  netEl.net.classList.remove("open");
+  if (!net.ready) backToOffline();
+});
+
+function openNet() {
+  netEl.net.classList.add("open");
+  netEl.netCodeWrap.classList.remove("on");
+  netSay("");
+  netEl.netInput.focus();
+}
+
 function toggleMode() {
+  if (game.mode === "online") netTeardown();
   game.mode = game.mode === "cpu" ? "local" : "cpu";
   store.set("mode", game.mode);
   resetMatch();
@@ -488,9 +672,12 @@ function togglePause() {
 
 function action() {
   if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
-  if (game.phase === "intro") { startMatch(); return; }
-  if (game.phase === "over") { resetMatch(); return; }
-  if (game.phase === "serve" && game.server === "me") serve("me");
+  if (game.phase === "intro") { if (isGuest()) return; startMatch(); return; }
+  if (game.phase === "over") { if (isGuest()) return; resetMatch(); return; }
+  if (game.phase === "serve" && game.server === "me") {
+    if (isGuest()) { netSend({ t: "sv" }); return; }   // המארח מגיש בפועל
+    serve("me");
+  }
 }
 
 function setDiff(i) {
@@ -719,6 +906,21 @@ function updateP2(dt) {
 }
 
 function updateOpponent(dt) {
+  if (game.mode === "online") {
+    // המארח מקבל את יעד המחבט מהרשת; האורח מקבל מיקום מוכן ולא מזיז כלום
+    if (isHost() && net.remote) {
+      cpu.tx = clamp(net.remote[0], -HALF_W - 0.42, HALF_W + 0.42);
+      cpu.ty = clamp(net.remote[1], 0.03, 0.62);
+    }
+    if (!isGuest()) {
+      const k = 1 - Math.pow(1e-8, dt);
+      const prevX = cpu.x;
+      cpu.x = lerp(cpu.x, cpu.tx, k);
+      cpu.y = lerp(cpu.y, cpu.ty, k);
+      cpu.tilt = clamp((cpu.x - prevX) * 5, -0.6, 0.6);
+    }
+    return;
+  }
   if (game.mode === "local") updateP2(dt); else updateCpu(dt);
 }
 
@@ -791,12 +993,15 @@ function updateHud() {
   el.sideCpu.classList.toggle("serving", game.server === "cpu");
 
   const two = game.mode === "local";
-  elLabelCpu.textContent = two ? "שחקן 2" : "מחשב";
-  elModeName.textContent = two ? "2 שחקנים" : "מול המחשב";
+  const on = game.mode === "online";
+  elLabelCpu.textContent = on ? "יריב" : (two ? "שחקן 2" : "מחשב");
+  elModeName.textContent = on ? "אונליין" : (two ? "2 שחקנים" : "מול המחשב");
   elBestRally.textContent = bestRally;
-  elHintText.innerHTML = two
+  elHintText.innerHTML = on
+    ? 'עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>T</kbd> יציאה מאונליין'
+    : two
     ? 'שחקן 1: עכבר או <kbd>WASD</kbd> · <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; שחקן 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה'
-    : 'עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה &nbsp;·&nbsp; <kbd>R</kbd> משחק חדש &nbsp;·&nbsp; <kbd>M</kbd> צליל';
+    : 'עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה &nbsp;·&nbsp; <kbd>R</kbd> משחק חדש &nbsp;·&nbsp; <kbd>M</kbd> צליל &nbsp;·&nbsp; <kbd>O</kbd> אונליין';
 
   if (game.paused) {
     el.center.classList.remove("hidden");
@@ -805,13 +1010,17 @@ function updateHud() {
   } else if (game.phase === "intro") {
     el.center.classList.remove("hidden");
     el.title.innerHTML = 'פינג <span>פונג</span> 3D';
-    el.msg.innerHTML = two
+    el.msg.innerHTML = on
+      ? 'ממתין ליריב…'
+      : two
       ? 'שחקן 1 בעכבר, שחקן 2 בחצים.<br>לחץ <b>רווח</b> להתחיל · <b>T</b> חוזר למשחק מול המחשב.'
-      : 'הזז את העכבר כדי לשלוט במחבט.<br>לחץ <b>רווח</b> או קליק כדי להתחיל · <b>T</b> למצב שני שחקנים.';
+      : 'הזז את העכבר כדי לשלוט במחבט.<br>לחץ <b>רווח</b> או קליק כדי להתחיל.<br><b>T</b> שני שחקנים · <b>O</b> אונליין.';
   } else if (game.phase === "over") {
     el.center.classList.remove("hidden");
     const iWon = game.winner === "me";
-    el.title.innerHTML = two
+    el.title.innerHTML = on
+      ? (iWon ? 'ניצחת! <span>🏓</span>' : 'היריב ניצח')
+      : two
       ? (iWon ? 'שחקן 1 ניצח! <span>🏓</span>' : 'שחקן 2 ניצח! <span>🏓</span>')
       : (iWon ? 'ניצחת! <span>🏓</span>' : 'המחשב ניצח');
     el.msg.innerHTML = `התוצאה <b>${game.scoreMe} : ${game.scoreCpu}</b><br>לחץ <b>רווח</b> למשחק חדש.`;
@@ -941,6 +1150,7 @@ function frame(now) {
   last = now;
   dt = Math.min(dt, 0.05);
   if (game.paused) dt = 0;   // הכל קופא, הציור ממשיך
+  netTick(now);
 
   fx.shake = Math.max(0, fx.shake - dt * 3.2);
   fx.flash = Math.max(0, fx.flash - dt * 4.5);
@@ -957,7 +1167,9 @@ function frame(now) {
   me.swing = Math.max(0, me.swing - dt * 5);
   cpu.swing = Math.max(0, cpu.swing - dt * 5);
 
-  if (game.phase === "rally") {
+  if (isGuest()) {
+    // המארח הוא מקור האמת — האורח רק מצייר את מה שהגיע ברשת
+  } else if (game.phase === "rally") {
     // fixed-step integration keeps collisions stable at any frame rate
     let acc = dt;
     const h = 1 / 240;
