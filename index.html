@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>פינג פונג תלת ממדי</title>
+<title>פינג פונג</title>
 <style>
   :root {
     --ink: #eaf2ff;
@@ -70,12 +70,36 @@
     font-size: 13px; color: var(--dim);
   }
   #diff b { color: var(--ink); }
-#net { position: fixed; inset: 0; margin: auto; width: 280px; height: fit-content;
-       background: #101a26; border: 1px solid #2a3b4f; border-radius: 14px; padding: 18px;
-       z-index: 6; display: none; flex-direction: column; gap: 9px; text-align: center;
-       box-shadow: 0 20px 60px rgba(0,0,0,.6); }
-#net.open { display: flex; }
-#net .netHead { font-size: 16px; font-weight: 800; color: #6ee7d7; margin-bottom: 4px; }
+#menu { position: fixed; inset: 0; margin: auto; width: 330px; max-height: 92vh; height: fit-content;
+        overflow-y: auto; background: #101a26; border: 1px solid #2a3b4f; border-radius: 16px;
+        padding: 20px; z-index: 7; display: none; flex-direction: column; gap: 13px;
+        text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,.65); }
+#menu.open { display: flex; }
+.mTitle { font-size: 27px; font-weight: 800; letter-spacing: 1px; }
+.mTitle span { color: #6ee7d7; }
+.mSec { display: flex; flex-direction: column; gap: 7px; }
+.mLab { font-size: 11px; color: #7f93a6; letter-spacing: .5px; }
+.mRow { display: flex; gap: 6px; }
+.mOpt { flex: 1; background: #16222f; color: #b9c9d8; border: 1px solid #26374a;
+        border-radius: 8px; font: inherit; font-size: 13px; font-weight: 700;
+        padding: 9px 4px; cursor: pointer; }
+.mOpt:hover { border-color: #6ee7d7; color: #eaf2f8; }
+.mOpt.on { background: #6ee7d7; color: #06202a; border-color: #6ee7d7; }
+.mHelp { font-size: 11.5px; color: #7f93a6; line-height: 1.7; background: #0a141d;
+         border-radius: 9px; padding: 9px 10px; }
+.mHelp kbd { background: #22303f; border: 1px solid #3a4c61; border-radius: 4px;
+             padding: 1px 5px; font-size: 10.5px; color: #d7e3ee; }
+#mStart { background: #6ee7d7; color: #06202a; border: 0; border-radius: 10px;
+          font: inherit; font-size: 16px; font-weight: 800; padding: 12px; cursor: pointer; }
+#mStart:hover { filter: brightness(1.08); }
+#mStart:disabled { background: #26374a; color: #6b7f92; cursor: not-allowed; filter: none; }
+.mFoot { font-size: 11px; color: #7f93a6; }
+#mResult { display: none; background: #0a141d; border: 1px solid #26374a; border-radius: 9px;
+           padding: 9px; font-size: 14px; font-weight: 700; color: #eaf2f8; }
+#mResult.on { display: block; }
+#mResult b { color: #6ee7d7; }
+#net { display: none; flex-direction: column; gap: 7px; }
+#net.on { display: flex; }
 #net button { font: inherit; font-weight: 700; font-size: 14px; padding: 9px; border: 0;
               border-radius: 8px; background: #6ee7d7; color: #06202a; cursor: pointer; }
 #net button:hover { filter: brightness(1.08); }
@@ -119,21 +143,47 @@
     &nbsp;·&nbsp; <b id="modeName">מול המחשב</b> <kbd>T</kbd>
     &nbsp;·&nbsp; ראלי שיא: <b id="bestRally">0</b></div>
 
-  <div id="net">
-    <div class="netHead">משחק אונליין</div>
-    <button id="netHost">צור חדר</button>
-    <div id="netCodeWrap">הקוד שלך: <b id="netCode">----</b><div class="netSub">תן אותו לחבר</div></div>
-    <div class="netOr">— או —</div>
-    <div class="netJoinRow">
-      <input id="netInput" maxlength="4" placeholder="קוד" autocomplete="off" dir="ltr">
-      <button id="netJoin">הצטרף</button>
+  <div id="menu">
+    <div class="mTitle">פינג <span>פונג</span></div>
+    <div id="mResult"></div>
+
+    <div class="mSec">
+      <div class="mLab">מצב משחק</div>
+      <div class="mRow" id="mModes">
+        <button class="mOpt" data-mode="cpu">מול המחשב</button>
+        <button class="mOpt" data-mode="local">2 שחקנים</button>
+        <button class="mOpt" data-mode="online">אונליין</button>
+      </div>
     </div>
-    <div id="netStatus"></div>
-    <button id="netClose" class="netGhost">סגור</button>
+
+    <div class="mSec" id="mDiffSec">
+      <div class="mLab">רמת קושי</div>
+      <div class="mRow" id="mDiffs">
+        <button class="mOpt" data-diff="0">קל</button>
+        <button class="mOpt" data-diff="1">בינוני</button>
+        <button class="mOpt" data-diff="2">קשה</button>
+      </div>
+    </div>
+
+    <div class="mSec" id="net">
+      <div class="mLab">חדר משחק</div>
+      <button id="netHost">צור חדר</button>
+      <div id="netCodeWrap">הקוד שלך: <b id="netCode">----</b><div class="netSub">תן אותו לחבר</div></div>
+      <div class="netOr">— או —</div>
+      <div class="netJoinRow">
+        <input id="netInput" maxlength="4" placeholder="קוד" autocomplete="off" dir="ltr">
+        <button id="netJoin">הצטרף</button>
+      </div>
+      <div id="netStatus"></div>
+    </div>
+
+    <div class="mHelp" id="mHelp"></div>
+    <button id="mStart">התחל משחק</button>
+    <div class="mFoot">ראלי שיא: <b id="mBest">0</b></div>
   </div>
 
   <div id="center">
-    <div id="title">פינג <span>פונג</span> 3D</div>
+    <div id="title">פינג <span>פונג</span></div>
     <div id="msg"></div>
   </div>
 
@@ -517,7 +567,7 @@ window.addEventListener("keyup", (e) => keys.delete(e.code));
 const net = { peer: null, conn: null, role: null, code: null, ready: false, last: 0, remote: null };
 
 const netEl = {};
-["net","netHost","netCode","netCodeWrap","netInput","netJoin","netStatus","netClose"]
+["net","netHost","netCode","netCodeWrap","netInput","netJoin","netStatus"]
   .forEach(id => netEl[id] = document.getElementById(id));
 
 const isGuest = () => game.mode === "online" && net.role === "guest";
@@ -566,7 +616,7 @@ function wireConn(conn) {
   conn.on("open", () => {
     net.ready = true;
     netSay("מחובר! מתחילים.", "ok");
-    setTimeout(() => netEl.net.classList.remove("open"), 900);
+    setTimeout(() => closeMenu(), 900);
     game.mode = "online";
     resetMatch();
     if (isHost()) { game.phase = "serve"; prepServe(); }
@@ -645,17 +695,73 @@ function netTick(now) {
 netEl.netHost.addEventListener("click", netHost);
 netEl.netJoin.addEventListener("click", netJoin);
 netEl.netInput.addEventListener("keydown", (e) => { if (e.code === "Enter") { e.stopPropagation(); netJoin(); } });
-netEl.netClose.addEventListener("click", () => {
-  netEl.net.classList.remove("open");
-  if (!net.ready) backToOffline();
-});
-
-function openNet() {
-  netEl.net.classList.add("open");
-  netEl.netCodeWrap.classList.remove("on");
-  netSay("");
+function openNet() {          // נשאר בשביל מקש O
+  setMode("online");
+  openMenu();
   netEl.netInput.focus();
 }
+
+/* ----------------------------------------------------------- menu ---- */
+const menuEl = document.getElementById("menu");
+const mHelp = document.getElementById("mHelp");
+const mStart = document.getElementById("mStart");
+const mBest = document.getElementById("mBest");
+const mResult = document.getElementById("mResult");
+
+function setMode(m) {
+  if (game.mode === "online" && m !== "online") netTeardown();
+  game.mode = m;
+  store.set("mode", m);
+  resetMatch();
+  refreshMenu();
+  updateHud();
+}
+
+function refreshMenu() {
+  document.querySelectorAll("#mModes .mOpt").forEach(b =>
+    b.classList.toggle("on", b.dataset.mode === game.mode));
+  document.querySelectorAll("#mDiffs .mOpt").forEach(b =>
+    b.classList.toggle("on", Number(b.dataset.diff) === game.diff));
+  document.getElementById("mDiffSec").style.display = game.mode === "cpu" ? "" : "none";
+  netEl.net.classList.toggle("on", game.mode === "online");
+  mBest.textContent = bestRally;
+
+  const waiting = game.mode === "online" && !net.ready;
+  mStart.disabled = waiting;
+  mStart.textContent = waiting ? "התחברו קודם לחדר" : "התחל משחק";
+
+  mHelp.innerHTML =
+    game.mode === "local"
+      ? 'שחקן 1: עכבר או <kbd>WASD</kbd>, מגיש ב<kbd>רווח</kbd><br>שחקן 2: <kbd>← ↑ ↓ →</kbd>, מגיש ב<kbd>Enter</kbd>'
+      : game.mode === "online"
+      ? 'צור חדר ותן את הקוד לחבר, או הקלד קוד שקיבלת.<br>אחרי החיבור: עכבר להזזה, <kbd>רווח</kbd> להגשה.'
+      : 'עכבר או <kbd>WASD</kbd> להזזת המחבט<br><kbd>רווח</kbd> הגשה · <kbd>P</kbd> השהיה · המשחק עד <b>11</b> נקודות';
+}
+
+function openMenu(resultHtml) {
+  if (resultHtml) { mResult.innerHTML = resultHtml; mResult.classList.add("on"); }
+  else { mResult.classList.remove("on"); }
+  menuEl.classList.add("open");
+  refreshMenu();
+  updateHud();
+}
+
+function closeMenu() {
+  menuEl.classList.remove("open");
+  updateHud();
+}
+
+document.getElementById("mModes").addEventListener("click", (e) => {
+  const b = e.target.closest(".mOpt"); if (b) setMode(b.dataset.mode);
+});
+document.getElementById("mDiffs").addEventListener("click", (e) => {
+  const b = e.target.closest(".mOpt"); if (b) { setDiff(Number(b.dataset.diff)); refreshMenu(); }
+});
+mStart.addEventListener("click", () => {
+  closeMenu();
+  if (game.mode !== "online") startMatch();
+  updateHud();
+});
 
 function toggleMode() {
   if (game.mode === "online") netTeardown();
@@ -774,6 +880,12 @@ function scorePoint(who) {
     game.winner = a > b ? "me" : "cpu";
     game.phase = "over";
     sfx.win();
+    const won = game.winner === "me";
+    const who = game.mode === "local" ? (won ? "שחקן 1" : "שחקן 2")
+              : game.mode === "online" ? (won ? "ניצחת" : "היריב ניצח")
+              : (won ? "ניצחת" : "המחשב ניצח");
+    const head = game.mode === "local" ? who + " ניצח" : who;
+    setTimeout(() => openMenu(head + '<br><b>' + game.scoreMe + ' : ' + game.scoreCpu + '</b>'), 1400);
   } else {
     // serve alternates every 2 points (every point from 10-10)
     game.servesLeft--;
@@ -1003,13 +1115,15 @@ function updateHud() {
     ? 'שחקן 1: עכבר או <kbd>WASD</kbd> · <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; שחקן 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה'
     : 'עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה &nbsp;·&nbsp; <kbd>R</kbd> משחק חדש &nbsp;·&nbsp; <kbd>M</kbd> צליל &nbsp;·&nbsp; <kbd>O</kbd> אונליין';
 
-  if (game.paused) {
+  if (menuEl.classList.contains("open")) {
+    el.center.classList.add("hidden");   // אחרת שתי שכבות היו נערמות
+  } else if (game.paused) {
     el.center.classList.remove("hidden");
     el.title.innerHTML = 'מושהה';
     el.msg.innerHTML = 'לחץ <b>P</b> כדי להמשיך.';
   } else if (game.phase === "intro") {
     el.center.classList.remove("hidden");
-    el.title.innerHTML = 'פינג <span>פונג</span> 3D';
+    el.title.innerHTML = 'פינג <span>פונג</span>';
     el.msg.innerHTML = on
       ? 'ממתין ליריב…'
       : two
@@ -1141,8 +1255,10 @@ let last = performance.now();
 (function restore() {
   const d = parseInt(store.get("diff", "1"), 10);
   if (d >= 0 && d <= 2) setDiff(d);
-  if (store.get("mode", "cpu") === "local") game.mode = "local";
+  const savedMode = store.get("mode", "cpu");
+  if (savedMode === "local") game.mode = "local";   // אונליין תמיד מתחיל מחדש
   updateHud();
+  openMenu();
 })();
 
 function frame(now) {
