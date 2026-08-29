@@ -70,11 +70,14 @@
     font-size: 13px; color: var(--dim);
   }
   #diff b { color: var(--ink); }
+#flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none;
+         z-index: 5; transition: opacity .06s linear; }
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
 
+<div id="flash"></div>
 <div id="hud">
   <div id="score">
     <div class="side me" id="sideMe">
@@ -84,12 +87,14 @@
     </div>
     <div class="sep">:</div>
     <div class="side cpu" id="sideCpu">
-      <div class="label">מחשב</div>
+      <div class="label" id="labelCpu">מחשב</div>
       <div class="num" id="scoreCpu">0</div>
     </div>
   </div>
 
-  <div id="diff">רמה: <b id="diffName">בינוני</b> <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></div>
+  <div id="diff">רמה: <b id="diffName">בינוני</b> <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>
+    &nbsp;·&nbsp; <b id="modeName">מול המחשב</b> <kbd>T</kbd>
+    &nbsp;·&nbsp; ראלי שיא: <b id="bestRally">0</b></div>
 
   <div id="center">
     <div id="title">פינג <span>פונג</span> 3D</div>
@@ -97,7 +102,7 @@
   </div>
 
   <div id="hint">
-    עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>R</kbd> משחק חדש &nbsp;·&nbsp; <kbd>M</kbd> צליל
+    <span id="hintText"></span>
   </div>
 </div>
 
@@ -383,8 +388,20 @@ const game = {
   lastHit: null,
   bounceSide: null,
   rallyCount: 0,
-  winner: null
+  winner: null,
+  mode: "cpu",        // cpu | local
+  paused: false
 };
+
+/* מה שנשמר בין משחקים */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("pp3d:" + k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("pp3d:" + k, v); } catch (e) {} }
+};
+let bestRally = parseInt(store.get("bestRally", "0"), 10) || 0;
+
+/* אפקטים — רעידת מסך, הבזק, ועקבות לכדור */
+const fx = { shake: 0, flash: 0, trail: [] };
 
 const ball = { p: [0, 0.3, 1.2], v: [0, 0, 0], spin: 0, rot: 0 };
 const me = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0 };
@@ -447,11 +464,27 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "Space") { e.preventDefault(); action(); }
   if (e.code === "KeyR") resetMatch();
   if (e.code === "KeyM") { soundOn = !soundOn; }
+  if (e.code === "KeyT") { toggleMode(); }
+  if (e.code === "KeyP" || e.code === "Escape") { togglePause(); }
+  if (e.code === "Enter" && game.mode === "local" &&
+      game.phase === "serve" && game.server === "cpu") { serve("cpu"); }
   if (e.code === "Digit1") setDiff(0);
   if (e.code === "Digit2") setDiff(1);
   if (e.code === "Digit3") setDiff(2);
 });
 window.addEventListener("keyup", (e) => keys.delete(e.code));
+
+function toggleMode() {
+  game.mode = game.mode === "cpu" ? "local" : "cpu";
+  store.set("mode", game.mode);
+  resetMatch();
+}
+
+function togglePause() {
+  if (game.phase === "intro" || game.phase === "over") return;
+  game.paused = !game.paused;
+  updateHud();
+}
 
 function action() {
   if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
@@ -461,6 +494,7 @@ function action() {
 }
 
 function setDiff(i) {
+  store.set("diff", i);
   game.diff = i;
   document.getElementById("diffName").textContent = DIFFS[i].name;
   resetMatch();
@@ -546,6 +580,7 @@ function scorePoint(who) {
   game.phase = "point";
   game.timer = 1.15;
   sfx.point();
+  if (game.rallyCount > bestRally) { bestRally = game.rallyCount; store.set("bestRally", bestRally); }
 
   const a = game.scoreMe, b = game.scoreCpu;
   if ((a >= 11 || b >= 11) && Math.abs(a - b) >= 2) {
@@ -595,6 +630,8 @@ function hitByPaddle(pad, padZ, isMe) {
   game.bounceSide = null;
   game.rallyCount++;
   pad.swing = 1;
+  fx.shake = Math.min(1, fx.shake + 0.55);
+  fx.flash = 0.55;
   sfx.paddle();
   return true;
 }
@@ -665,6 +702,26 @@ function predictBallX(atZ) {
   return null;
 }
 
+// שחקן 2 על החצים — אותו מחבט שהמחשב מפעיל במצב רגיל
+function updateP2(dt) {
+  const kSpeed = 1.9 * dt;
+  if (keys.has("ArrowLeft")) { cpu.tx += kSpeed; }   // מהופך: הוא יושב מולך
+  if (keys.has("ArrowRight")) { cpu.tx -= kSpeed; }
+  if (keys.has("ArrowUp")) { cpu.ty += kSpeed; }
+  if (keys.has("ArrowDown")) { cpu.ty -= kSpeed; }
+  cpu.tx = clamp(cpu.tx, -HALF_W - 0.42, HALF_W + 0.42);
+  cpu.ty = clamp(cpu.ty, 0.03, 0.62);
+  const k = 1 - Math.pow(1e-8, dt);
+  const prevX = cpu.x;
+  cpu.x = lerp(cpu.x, cpu.tx, k);
+  cpu.y = lerp(cpu.y, cpu.ty, k);
+  cpu.tilt = clamp((cpu.x - prevX) * 5, -0.6, 0.6);
+}
+
+function updateOpponent(dt) {
+  if (game.mode === "local") updateP2(dt); else updateCpu(dt);
+}
+
 function updateCpu(dt) {
   const d = DIFFS[game.diff];
   const incoming = game.phase === "rally" && ball.v[2] < 0 && game.lastHit === "me";
@@ -694,10 +751,12 @@ function updateCpu(dt) {
 
 function updateMe(dt) {
   const kSpeed = 1.9 * dt;
-  if (keys.has("ArrowLeft") || keys.has("KeyA")) { me.tx -= kSpeed; }
-  if (keys.has("ArrowRight") || keys.has("KeyD")) { me.tx += kSpeed; }
-  if (keys.has("ArrowUp") || keys.has("KeyW")) { me.ty += kSpeed; }
-  if (keys.has("ArrowDown") || keys.has("KeyS")) { me.ty -= kSpeed; }
+  // בשני שחקנים החצים שייכים לשחקן 2, אז שחקן 1 נשאר עם העכבר ו-WASD
+  const two = game.mode === "local";
+  if (keys.has("KeyA") || (!two && keys.has("ArrowLeft"))) { me.tx -= kSpeed; }
+  if (keys.has("KeyD") || (!two && keys.has("ArrowRight"))) { me.tx += kSpeed; }
+  if (keys.has("KeyW") || (!two && keys.has("ArrowUp"))) { me.ty += kSpeed; }
+  if (keys.has("KeyS") || (!two && keys.has("ArrowDown"))) { me.ty -= kSpeed; }
   me.tx = clamp(me.tx, -HALF_W - 0.42, HALF_W + 0.42);
   me.ty = clamp(me.ty, 0.03, 0.62);
 
@@ -719,24 +778,51 @@ const el = {
   msg: document.getElementById("msg")
 };
 
+const flashEl = document.getElementById("flash");
+const elLabelCpu = document.getElementById("labelCpu");
+const elModeName = document.getElementById("modeName");
+const elBestRally = document.getElementById("bestRally");
+const elHintText = document.getElementById("hintText");
+
 function updateHud() {
   el.scoreMe.textContent = game.scoreMe;
   el.scoreCpu.textContent = game.scoreCpu;
   el.sideMe.classList.toggle("serving", game.server === "me");
   el.sideCpu.classList.toggle("serving", game.server === "cpu");
 
-  if (game.phase === "intro") {
+  const two = game.mode === "local";
+  elLabelCpu.textContent = two ? "שחקן 2" : "מחשב";
+  elModeName.textContent = two ? "2 שחקנים" : "מול המחשב";
+  elBestRally.textContent = bestRally;
+  elHintText.innerHTML = two
+    ? 'שחקן 1: עכבר או <kbd>WASD</kbd> · <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; שחקן 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה'
+    : 'עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה &nbsp;·&nbsp; <kbd>R</kbd> משחק חדש &nbsp;·&nbsp; <kbd>M</kbd> צליל';
+
+  if (game.paused) {
+    el.center.classList.remove("hidden");
+    el.title.innerHTML = 'מושהה';
+    el.msg.innerHTML = 'לחץ <b>P</b> כדי להמשיך.';
+  } else if (game.phase === "intro") {
     el.center.classList.remove("hidden");
     el.title.innerHTML = 'פינג <span>פונג</span> 3D';
-    el.msg.innerHTML = 'הזז את העכבר כדי לשלוט במחבט.<br>לחץ <b>רווח</b> או קליק כדי להתחיל. המשחק עד <b>11</b> נקודות.';
+    el.msg.innerHTML = two
+      ? 'שחקן 1 בעכבר, שחקן 2 בחצים.<br>לחץ <b>רווח</b> להתחיל · <b>T</b> חוזר למשחק מול המחשב.'
+      : 'הזז את העכבר כדי לשלוט במחבט.<br>לחץ <b>רווח</b> או קליק כדי להתחיל · <b>T</b> למצב שני שחקנים.';
   } else if (game.phase === "over") {
     el.center.classList.remove("hidden");
-    el.title.innerHTML = game.winner === "me" ? 'ניצחת! <span>🏓</span>' : 'המחשב ניצח';
+    const iWon = game.winner === "me";
+    el.title.innerHTML = two
+      ? (iWon ? 'שחקן 1 ניצח! <span>🏓</span>' : 'שחקן 2 ניצח! <span>🏓</span>')
+      : (iWon ? 'ניצחת! <span>🏓</span>' : 'המחשב ניצח');
     el.msg.innerHTML = `התוצאה <b>${game.scoreMe} : ${game.scoreCpu}</b><br>לחץ <b>רווח</b> למשחק חדש.`;
   } else if (game.phase === "serve" && game.server === "me") {
     el.center.classList.remove("hidden");
     el.title.innerHTML = '';
-    el.msg.innerHTML = 'התור שלך להגיש — לחץ <b>רווח</b>';
+    el.msg.innerHTML = two ? 'שחקן 1 מגיש — לחץ <b>רווח</b>' : 'התור שלך להגיש — לחץ <b>רווח</b>';
+  } else if (game.phase === "serve" && game.server === "cpu" && two) {
+    el.center.classList.remove("hidden");
+    el.title.innerHTML = '';
+    el.msg.innerHTML = 'שחקן 2 מגיש — לחץ <b>Enter</b>';
   } else {
     el.center.classList.add("hidden");
   }
@@ -799,6 +885,15 @@ function drawPaddle(pad, z, faceColor, isMe) {
 }
 
 function drawBall() {
+  // עקבות: כדורים קטנים והולכים ונעלמים מאחורי הכדור
+  for (let i = 0; i < fx.trail.length; i++) {
+    const f = (i + 1) / (fx.trail.length + 1);
+    const p = fx.trail[i];
+    const r = BALL_R * 2 * f * 0.82;
+    draw(MESH.sphere, M4.chain(M4.trans(p[0], p[1], p[2]), M4.scale(r, r, r)),
+         COLOR.ball, { alpha: f * 0.30, spec: 0, ambient: 1 });
+  }
+
   draw(MESH.sphere, M4.chain(
     M4.trans(ball.p[0], ball.p[1], ball.p[2]),
     M4.rotY(ball.rot * 0.6), M4.rotX(ball.rot),
@@ -833,13 +928,32 @@ window.addEventListener("resize", resize);
 
 let last = performance.now();
 
+// שחזור העדפות שנשמרו
+(function restore() {
+  const d = parseInt(store.get("diff", "1"), 10);
+  if (d >= 0 && d <= 2) setDiff(d);
+  if (store.get("mode", "cpu") === "local") game.mode = "local";
+  updateHud();
+})();
+
 function frame(now) {
   let dt = (now - last) / 1000;
   last = now;
   dt = Math.min(dt, 0.05);
+  if (game.paused) dt = 0;   // הכל קופא, הציור ממשיך
+
+  fx.shake = Math.max(0, fx.shake - dt * 3.2);
+  fx.flash = Math.max(0, fx.flash - dt * 4.5);
+  flashEl.style.opacity = fx.flash * 0.5;
+  if (game.phase === "rally" && !game.paused) {
+    fx.trail.push([ball.p[0], ball.p[1], ball.p[2]]);
+    if (fx.trail.length > 9) fx.trail.shift();
+  } else if (game.phase !== "rally") {
+    fx.trail.length = 0;
+  }
 
   updateMe(dt);
-  updateCpu(dt);
+  updateOpponent(dt);
   me.swing = Math.max(0, me.swing - dt * 5);
   cpu.swing = Math.max(0, cpu.swing - dt * 5);
 
@@ -856,8 +970,11 @@ function frame(now) {
       ball.p = [me.x, me.y + 0.10, PLAYER_Z - 0.22];
     } else {
       ball.p = [cpu.x, cpu.y + 0.10, CPU_Z + 0.22];
-      game.timer -= dt;
-      if (game.timer <= 0) serve("cpu");
+      // במצב שני שחקנים ההגשה של שחקן 2 היא בידיים שלו (Enter)
+      if (game.mode !== "local") {
+        game.timer -= dt;
+        if (game.timer <= 0) serve("cpu");
+      }
     }
   } else if (game.phase === "point") {
     game.timer -= dt;
@@ -882,14 +999,16 @@ function frame(now) {
   const aspect = canvas.width / Math.max(1, canvas.height);
   const proj = M4.persp(50 * Math.PI / 180, aspect, 0.05, 60);
   const sway = me.x * 0.14;
-  const eye = [sway, 0.86, 3.15];
+  const sh = fx.shake * 0.045;
+  const eye = [sway + (Math.random() - 0.5) * sh, 0.86 + (Math.random() - 0.5) * sh, 3.15];
   const view = M4.lookAt(eye, [sway * 0.4, 0.0, -0.35], [0, 1, 0]);
 
   gl.uniformMatrix4fv(U.uProj, false, proj);
   gl.uniformMatrix4fv(U.uView, false, view);
   gl.uniform3fv(U.uCam, eye);
 
-  gl.disable(gl.BLEND);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   drawTable();
   drawPaddle(cpu, CPU_Z, COLOR.padCpu, false);
   drawPaddle(me, PLAYER_Z, COLOR.padMe, true);
