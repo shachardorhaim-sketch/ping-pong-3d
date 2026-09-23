@@ -71,6 +71,10 @@
     font-size: 13px; color: var(--dim);
   }
   #diff b { color: var(--ink); }
+  /* במסך צר השורה הזו עלתה על לוח הניקוד, אז היא יורדת אל מתחתיו */
+  @media (max-width: 960px) {
+    #diff { top: 112px; right: 0; left: 0; padding: 0 12px; text-align: center; }
+  }
 #menu { pointer-events: auto;   /* #hud מבטל לחיצות, והתפריט יושב בתוכו */
         position: fixed; inset: 0; margin: auto; width: 330px; max-height: 92vh; height: fit-content;
         overflow-y: auto; background: #101a26; border: 1px solid #2a3b4f; border-radius: 16px;
@@ -130,7 +134,7 @@
 <div id="hud">
   <div id="score">
     <div class="side me" id="sideMe">
-      <div class="label">אתה</div>
+      <div class="label" id="labelMe">אתה</div>
       <div class="num" id="scoreMe">0</div>
       <i id="serveDot"></i>
     </div>
@@ -549,9 +553,12 @@ canvas.addEventListener("touchmove", (e) => {
   setPaddleFromPointer(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: false });
 canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault();   // אחרת הדפדפן שולח אחריה גם mousedown מדומה, ונגיעה אחת נספרת פעמיים
   setPaddleFromPointer(e.touches[0].clientX, e.touches[0].clientY);
   action();
-}, { passive: true });
+}, { passive: false });
+// ב-iOS צליל נפתח רק מתוך touchend או click, לא מ-touchstart, וה-mousedown המדומה כבר לא מגיע
+canvas.addEventListener("touchend", () => { if (audioCtx && audioCtx.state === "suspended") audioCtx.resume(); });
 canvas.addEventListener("mousedown", action);
 
 window.addEventListener("keydown", (e) => {
@@ -570,11 +577,16 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "Escape") { if (game.phase === "intro" || game.phase === "over") openMenu(); else togglePause(); }
   if (e.code === "Enter" && game.mode === "local" &&
       game.phase === "serve" && game.server === "cpu") { serve("cpu"); }
-  if (e.code === "Digit1") setDiff(0);
-  if (e.code === "Digit2") setDiff(1);
-  if (e.code === "Digit3") setDiff(2);
+  // לרמה יש משמעות רק מול המחשב. בשני שחקנים 1-3 צמודים ל-WASD, ולחיצה בטעות איפסה את המשחק
+  if (game.mode === "cpu") {
+    if (e.code === "Digit1") setDiff(0);
+    if (e.code === "Digit2") setDiff(1);
+    if (e.code === "Digit3") setDiff(2);
+  }
 });
 window.addEventListener("keyup", (e) => keys.delete(e.code));
+// מקש שמוחזק כשהחלון מאבד פוקוס לא מקבל keyup, והמחבט היה ממשיך לזוז לבד
+window.addEventListener("blur", () => keys.clear());
 
 /* --------------------------------------------------------- online ---- */
 /* המארח מריץ את כל הפיזיקה, האורח שולח מחבט ומצייר מה שמגיע.
@@ -775,7 +787,8 @@ document.getElementById("mDiffs").addEventListener("click", (e) => {
 });
 mStart.addEventListener("click", () => {
   closeMenu();
-  if (game.mode !== "online") resetMatch();   // מאפס ניקוד, לא רק מתחיל
+  // מאפס ניקוד, לא רק מתחיל. באונליין רק המארח, ורק אחרי שמשחק נגמר
+  if (game.mode !== "online" || (isHost() && game.phase === "over")) resetMatch();
   updateHud();
 });
 
@@ -794,6 +807,7 @@ function togglePause() {
 
 function action() {
   if (menuIsOpen()) return;
+  if (game.paused) { togglePause(); return; }   // בהשהיה רווח או נגיעה ממשיכים, ולא מגישים בסתר
   if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
   if (game.phase === "intro") { if (isGuest()) return; startMatch(); return; }
   if (game.phase === "over") { if (isGuest()) return; resetMatch(); return; }
@@ -840,7 +854,7 @@ function prepServe() {
   if (game.server === "me") {
     ball.p = [me.x, 0.34, PLAYER_Z - 0.22];
   } else {
-    cpu.tx = (Math.random() - 0.5) * 0.7;
+    if (game.mode === "cpu") cpu.tx = (Math.random() - 0.5) * 0.7;   // את המחבט של שחקן 2 לא מזיזים בשבילו
     ball.p = [cpu.x, 0.34, CPU_Z + 0.22];
     game.timer = 1.0;
   }
@@ -851,7 +865,7 @@ function serve(who) {
   const dir = who === "me" ? -1 : 1;
   const targetZ = dir * (0.35 + Math.random() * 0.85);
   const targetX = clamp((who === "me" ? me.x : cpu.x) * 0.5 + (Math.random() - 0.5) * 0.7, -HALF_W + 0.1, HALF_W - 0.1);
-  const T = who === "me" ? 0.55 : d.flight * 0.85;
+  const T = who === "me" || game.mode !== "cpu" ? 0.55 : d.flight * 0.85;
   launch(targetX, targetZ, T);
   game.lastHit = who;
   game.bounceSide = null;
@@ -902,7 +916,8 @@ function scorePoint(who) {
               : game.mode === "online" ? (won ? "ניצחת" : "היריב ניצח")
               : (won ? "ניצחת" : "המחשב ניצח");
     const head = game.mode === "local" ? who + " ניצח" : who;
-    setTimeout(() => openMenu(head + '<br><b>' + game.scoreMe + ' : ' + game.scoreCpu + '</b>'), 1400);
+    // אם בינתיים כבר התחילו משחק חדש ברווח, התפריט לא קופץ עליו באמצע
+    setTimeout(() => { if (game.phase === "over") openMenu(head + '<br><b>' + game.scoreMe + ' : ' + game.scoreCpu + '</b>'); }, 1400);
   } else {
     // serve alternates every 2 points (every point from 10-10)
     game.servesLeft--;
@@ -922,20 +937,22 @@ function onTable(x, z, pad = 0.015) {
 
 function hitByPaddle(pad, padZ, isMe) {
   const d = DIFFS[game.diff];
+  // שחקן 2 והיריב באונליין הם בני אדם: בלי הרעש, הטווח הקטן ורמת הקושי של המחשב
+  const human = isMe || game.mode !== "cpu";
   const dx = ball.p[0] - pad.x;
   const dy = ball.p[1] - pad.y;
   const off = Math.hypot(dx, dy);
-  const reach = PAD_R + BALL_R + (isMe ? 0.035 : 0);
+  const reach = PAD_R + BALL_R + (human ? 0.035 : 0);
   if (off > reach) return false;
 
   const power = 1 - clamp(off / reach, 0, 1) * 0.55;
   const speedUp = Math.min(1 + game.rallyCount * 0.012, 1.45);
-  const baseT = (isMe ? 0.60 : d.flight) / speedUp;
+  const baseT = (human ? 0.60 : d.flight) / speedUp;
   const T = clamp(baseT * (1.28 - 0.42 * power), 0.36, 0.85);
 
   const dirZ = isMe ? -1 : 1;
-  let aimX = clamp(dx * 5.2 + (isMe ? 0 : (Math.random() - 0.5) * 0.9), -HALF_W + 0.08, HALF_W - 0.08);
-  if (!isMe) aimX = clamp(aimX + (Math.random() - 0.5) * d.err * 2, -HALF_W + 0.08, HALF_W - 0.08);
+  let aimX = clamp(dx * 5.2 + (human ? 0 : (Math.random() - 0.5) * 0.9), -HALF_W + 0.08, HALF_W - 0.08);
+  if (!human) aimX = clamp(aimX + (Math.random() - 0.5) * d.err * 2, -HALF_W + 0.08, HALF_W - 0.08);
   const aimZ = dirZ * (0.3 + Math.random() * 0.9);
 
   ball.p[2] = padZ + dirZ * (BALL_R + 0.005);
@@ -1110,6 +1127,7 @@ const el = {
 };
 
 const flashEl = document.getElementById("flash");
+const elLabelMe = document.getElementById("labelMe");
 const elLabelCpu = document.getElementById("labelCpu");
 const elModeName = document.getElementById("modeName");
 const elBestRally = document.getElementById("bestRally");
@@ -1126,6 +1144,7 @@ function updateHud() {
 
   const two = game.mode === "local";
   const on = game.mode === "online";
+  elLabelMe.textContent = two ? "שחקן 1" : "אתה";
   elLabelCpu.textContent = on ? "יריב" : (two ? "שחקן 2" : "מחשב");
   elModeName.textContent = on ? "אונליין" : (two ? "2 שחקנים" : "מול המחשב");
   elBestRally.textContent = bestRally;
@@ -1140,7 +1159,7 @@ function updateHud() {
   } else if (game.paused) {
     el.center.classList.remove("hidden");
     el.title.innerHTML = 'מושהה';
-    el.msg.innerHTML = 'לחץ <b>P</b> כדי להמשיך.';
+    el.msg.innerHTML = 'לחץ <b>P</b>, <b>רווח</b> או על המסך כדי להמשיך.';
   } else if (game.phase === "intro") {
     el.center.classList.remove("hidden");
     el.title.innerHTML = 'פינג <span>פונג</span>';
@@ -1157,7 +1176,8 @@ function updateHud() {
       : two
       ? (iWon ? 'שחקן 1 ניצח! <span>🏓</span>' : 'שחקן 2 ניצח! <span>🏓</span>')
       : (iWon ? 'ניצחת! <span>🏓</span>' : 'המחשב ניצח');
-    el.msg.innerHTML = `התוצאה <b>${game.scoreMe} : ${game.scoreCpu}</b><br>לחץ <b>רווח</b> למשחק חדש.`;
+    el.msg.innerHTML = `התוצאה <b>${game.scoreMe} : ${game.scoreCpu}</b><br>` +
+      (isGuest() ? 'ממתין שהיריב יפתח משחק חדש…' : 'לחץ <b>רווח</b> למשחק חדש.');
   } else if (game.phase === "serve" && game.server === "me") {
     el.center.classList.remove("hidden");
     el.title.innerHTML = '';
@@ -1322,8 +1342,8 @@ function frame(now) {
       ball.p = [me.x, me.y + 0.10, PLAYER_Z - 0.22];
     } else {
       ball.p = [cpu.x, cpu.y + 0.10, CPU_Z + 0.22];
-      // במצב שני שחקנים ההגשה של שחקן 2 היא בידיים שלו (Enter)
-      if (game.mode !== "local") {
+      // רק המחשב מגיש לבד. שחקן 2 מגיש ב-Enter, והיריב באונליין ברווח שלו
+      if (game.mode === "cpu") {
         game.timer -= dt;
         if (game.timer <= 0) serve("cpu");
       }
@@ -1349,11 +1369,16 @@ function frame(now) {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
   const aspect = canvas.width / Math.max(1, canvas.height);
-  const proj = M4.persp(50 * Math.PI / 180, aspect, 0.05, 60);
+  // בטלפון לאורך הזווית האופקית הייתה צרה וקצוות השולחן נחתכו. שומרים על רוחב מינימלי,
+  // ומרימים את המצלמה כדי שהשולחן ינצל גם את הגובה של המסך
+  const halfFov = 25 * Math.PI / 180, MIN_ASPECT = 0.95;
+  const fovy = aspect >= MIN_ASPECT ? halfFov * 2 : 2 * Math.atan(Math.tan(halfFov) * MIN_ASPECT / aspect);
+  const tall = clamp(MIN_ASPECT - aspect, 0, 1);
+  const proj = M4.persp(fovy, aspect, 0.05, 60);
   const sway = me.x * 0.14;
   const sh = fx.shake * 0.045;
-  const eye = [sway + (Math.random() - 0.5) * sh, 0.86 + (Math.random() - 0.5) * sh, 3.15];
-  const view = M4.lookAt(eye, [sway * 0.4, 0.0, -0.35], [0, 1, 0]);
+  const eye = [sway + (Math.random() - 0.5) * sh, 0.86 + tall * 1.3 + (Math.random() - 0.5) * sh, 3.15 - tall * 0.5];
+  const view = M4.lookAt(eye, [sway * 0.4, 0.0, -0.35 + tall * 0.3], [0, 1, 0]);
 
   gl.uniformMatrix4fv(U.uProj, false, proj);
   gl.uniformMatrix4fv(U.uView, false, view);
