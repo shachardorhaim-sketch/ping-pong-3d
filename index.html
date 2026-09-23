@@ -79,10 +79,16 @@
     background: rgba(8, 14, 26, 0.62); border: 1px solid rgba(140, 175, 225, 0.18);
   }
   #ctrl button:hover { border-color: var(--accent); }
-  /* במסך צר השורה הזו עלתה על לוח הניקוד, אז היא יורדת אל מתחתיו */
+  /* במסך צר השורה הזו עלתה על לוח הניקוד, אז היא יורדת אל מתחתיו, והכפתורים ביניהם.
+     כך גם כשהיא נשברת לשתי שורות (בגרמנית, בערבית) היא לא עולה עליהם */
   @media (max-width: 960px) {
-    #diff { top: 112px; right: 0; left: 0; padding: 0 12px; text-align: center; }
-    #ctrl { top: 142px; left: 12px; }
+    #diff { top: 162px; right: 0; left: 0; padding: 0 12px; text-align: center; }
+    #ctrl { top: 112px; left: 50%; transform: translateX(-50%); }
+  }
+  /* טלפון לרוחב: אין גובה מיותר, אז הכפתורים עוברים לצד */
+  @media (max-width: 960px) and (max-height: 560px) {
+    #diff { top: 112px; }
+    #ctrl { top: 18px; left: 12px; transform: none; flex-direction: column; }
   }
 #menu { pointer-events: auto;   /* #hud מבטל לחיצות, והתפריט יושב בתוכו */
         position: fixed; inset: 0; margin: auto; width: 330px; max-height: 92vh; height: fit-content;
@@ -154,51 +160,51 @@
     </div>
   </div>
 
-  <div id="diff">רמה: <b id="diffName">בינוני</b> <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>
+  <div id="diff"><span data-t="level">רמה:</span> <b id="diffName">בינוני</b> <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd>
     &nbsp;·&nbsp; <b id="modeName">מול המחשב</b> <kbd>T</kbd>
-    &nbsp;·&nbsp; ראלי שיא: <b id="bestRally">0</b></div>
+    &nbsp;·&nbsp; <span data-t="bestRally">ראלי שיא:</span> <b id="bestRally">0</b></div>
 
   <div id="menu">
-    <div class="mTitle">פינג <span>פונג</span></div>
+    <div class="mTitle" data-t="logo">פינג <span>פונג</span></div>
     <div id="mResult"></div>
 
     <div class="mSec">
-      <div class="mLab">מצב משחק</div>
+      <div class="mLab" data-t="gameMode">מצב משחק</div>
       <div class="mRow" id="mModes">
-        <button class="mOpt" data-mode="cpu">מול המחשב</button>
-        <button class="mOpt" data-mode="local">2 שחקנים</button>
-        <button class="mOpt" data-mode="online">אונליין</button>
+        <button class="mOpt" data-mode="cpu" data-t="modeCpu">מול המחשב</button>
+        <button class="mOpt" data-mode="local" data-t="modeLocal">2 שחקנים</button>
+        <button class="mOpt" data-mode="online" data-t="modeOnline">אונליין</button>
       </div>
     </div>
 
     <div class="mSec" id="mDiffSec">
-      <div class="mLab">רמת קושי</div>
+      <div class="mLab" data-t="difficulty">רמת קושי</div>
       <div class="mRow" id="mDiffs">
-        <button class="mOpt" data-diff="0">קל</button>
-        <button class="mOpt" data-diff="1">בינוני</button>
-        <button class="mOpt" data-diff="2">קשה</button>
+        <button class="mOpt" data-diff="0" data-t="easy">קל</button>
+        <button class="mOpt" data-diff="1" data-t="medium">בינוני</button>
+        <button class="mOpt" data-diff="2" data-t="hard">קשה</button>
       </div>
     </div>
 
     <div class="mSec" id="net">
-      <div class="mLab">חדר משחק</div>
-      <button id="netHost">צור חדר</button>
-      <div id="netCodeWrap">הקוד שלך: <b id="netCode">----</b><div class="netSub">תן אותו לחבר</div></div>
-      <div class="netOr">— או —</div>
+      <div class="mLab" data-t="room">חדר משחק</div>
+      <button id="netHost" data-t="createRoom">צור חדר</button>
+      <div id="netCodeWrap"><span data-t="yourCode">הקוד שלך:</span> <b id="netCode">----</b><div class="netSub" data-t="giveFriend">תן אותו לחבר</div></div>
+      <div class="netOr" data-t="or">— או —</div>
       <div class="netJoinRow">
-        <input id="netInput" maxlength="4" placeholder="קוד" autocomplete="off" dir="ltr">
-        <button id="netJoin">הצטרף</button>
+        <input id="netInput" maxlength="4" placeholder="קוד" data-tph="codePh" autocomplete="off" dir="ltr">
+        <button id="netJoin" data-t="join">הצטרף</button>
       </div>
       <div id="netStatus"></div>
     </div>
 
     <div class="mHelp" id="mHelp"></div>
     <button id="mStart">התחל משחק</button>
-    <div class="mFoot">ראלי שיא: <b id="mBest">0</b></div>
+    <div class="mFoot"><span data-t="bestRally">ראלי שיא:</span> <b id="mBest">0</b></div>
   </div>
 
   <div id="center">
-    <div id="title">פינג <span>פונג</span></div>
+    <div id="title" data-t="logo">פינג <span>פונג</span></div>
     <div id="msg"></div>
   </div>
 
@@ -207,8 +213,8 @@
   </div>
 
   <div id="ctrl">
-    <button id="bPause" aria-label="השהיה" title="השהיה">⏸</button>
-    <button id="bSound" aria-label="צליל" title="צליל">🔊</button>
+    <button id="bPause" aria-label="השהיה" title="השהיה" data-tl="pause">⏸</button>
+    <button id="bSound" aria-label="צליל" title="צליל" data-tl="sound">🔊</button>
   </div>
 </div>
 
@@ -271,11 +277,314 @@ const M4 = {
 const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
 const lerp = (a, b, t) => a + (b - a) * t;
 
+/* ----------------------------------------------------------- i18n ---- */
+/* 9 השפות של Floating rotation. הפלטפורמה מעבירה את השפה ב-?lang=, כי ממקור אחר
+   אי אפשר לקרוא אותה מה-localStorage שלה. בלי פרמטר נשארים עם השפה האחרונה */
+const TR = {
+  he: {
+    title: "פינג פונג", logo: "פינג <span>פונג</span>",
+    you: "אתה", cpu: "מחשב", rival: "יריב", p1: "שחקן 1", p2: "שחקן 2",
+    level: "רמה:", bestRally: "ראלי שיא:",
+    modeCpu: "מול המחשב", modeLocal: "2 שחקנים", modeOnline: "אונליין",
+    gameMode: "מצב משחק", difficulty: "רמת קושי", easy: "קל", medium: "בינוני", hard: "קשה",
+    room: "חדר משחק", createRoom: "צור חדר", yourCode: "הקוד שלך:", giveFriend: "תן אותו לחבר",
+    or: "— או —", codePh: "קוד", join: "הצטרף",
+    start: "התחל משחק", connectFirst: "התחברו קודם לחדר",
+    noWebgl: "הדפדפן הזה לא תומך ב-WebGL.",
+    netConnected: "מחובר! מתחילים.", netClosed: "החיבור נסגר.", netError: "שגיאת חיבור.",
+    netNoLib: "לא הצלחתי לטעון את ספריית החיבור. בדוק אינטרנט.", netOpening: "פותח חדר…",
+    netWaiting: "ממתין שחבר יצטרף…", netHostFail: "לא הצלחתי לפתוח חדר. נסה שוב.",
+    netNeedCode: "צריך קוד בן 4 תווים.", netJoining: "מתחבר…", netNoRoom: "לא נמצא חדר עם הקוד הזה.",
+    helpLocal: "שחקן 1: עכבר או <kbd>WASD</kbd>, מגיש ב<kbd>רווח</kbd><br>שחקן 2: <kbd>← ↑ ↓ →</kbd>, מגיש ב<kbd>Enter</kbd>",
+    helpOnline: "צור חדר ותן את הקוד לחבר, או הקלד קוד שקיבלת.<br>אחרי החיבור: עכבר להזזה, <kbd>רווח</kbd> להגשה.",
+    helpCpu: "עכבר או <kbd>WASD</kbd> להזזת המחבט<br><kbd>רווח</kbd> הגשה · <kbd>P</kbd> השהיה · המשחק עד <b>11</b> נקודות",
+    wonP1: "שחקן 1 ניצח", wonP2: "שחקן 2 ניצח", youWon: "ניצחת", rivalWon: "היריב ניצח", cpuWon: "המחשב ניצח",
+    hintOnline: "עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>T</kbd> יציאה מאונליין",
+    hintLocal: "שחקן 1: עכבר או <kbd>WASD</kbd> · <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; שחקן 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה",
+    hintCpu: "עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה &nbsp;·&nbsp; <kbd>R</kbd> משחק חדש &nbsp;·&nbsp; <kbd>M</kbd> צליל &nbsp;·&nbsp; <kbd>O</kbd> אונליין",
+    paused: "מושהה", pausedMsg: "לחץ <b>P</b>, <b>רווח</b> או על המסך כדי להמשיך.",
+    introOnline: "ממתין ליריב…",
+    introLocal: "שחקן 1 בעכבר, שחקן 2 בחצים.<br>לחץ <b>רווח</b> להתחיל · <b>T</b> חוזר למשחק מול המחשב.",
+    introCpu: "הזז את העכבר כדי לשלוט במחבט.<br>לחץ <b>רווח</b> או קליק כדי להתחיל.<br><b>T</b> שני שחקנים · <b>O</b> אונליין.",
+    overYouWon: "ניצחת! <span>🏓</span>", overRivalWon: "היריב ניצח", overP1: "שחקן 1 ניצח! <span>🏓</span>",
+    overP2: "שחקן 2 ניצח! <span>🏓</span>", overCpuWon: "המחשב ניצח",
+    result: "התוצאה", waitRematch: "ממתין שהיריב יפתח משחק חדש…", pressNew: "לחץ <b>רווח</b> למשחק חדש.",
+    serveP1: "שחקן 1 מגיש — לחץ <b>רווח</b>", serveYou: "התור שלך להגיש — לחץ <b>רווח</b>", serveP2: "שחקן 2 מגיש — לחץ <b>Enter</b>",
+    pause: "השהיה", sound: "צליל"
+  },
+  en: {
+    title: "Ping Pong", logo: "Ping <span>Pong</span>",
+    you: "You", cpu: "Computer", rival: "Opponent", p1: "Player 1", p2: "Player 2",
+    level: "Level:", bestRally: "Best rally:",
+    modeCpu: "Vs computer", modeLocal: "2 players", modeOnline: "Online",
+    gameMode: "Game mode", difficulty: "Difficulty", easy: "Easy", medium: "Medium", hard: "Hard",
+    room: "Game room", createRoom: "Create room", yourCode: "Your code:", giveFriend: "Give it to a friend",
+    or: "— or —", codePh: "Code", join: "Join",
+    start: "Start game", connectFirst: "Connect to a room first",
+    noWebgl: "This browser doesn't support WebGL.",
+    netConnected: "Connected! Let's play.", netClosed: "The connection was closed.", netError: "Connection error.",
+    netNoLib: "Couldn't load the connection library. Check your internet.", netOpening: "Opening a room…",
+    netWaiting: "Waiting for a friend to join…", netHostFail: "Couldn't open a room. Try again.",
+    netNeedCode: "The code needs 4 characters.", netJoining: "Connecting…", netNoRoom: "No room found with this code.",
+    helpLocal: "Player 1: mouse or <kbd>WASD</kbd>, serve with <kbd>Space</kbd><br>Player 2: <kbd>← ↑ ↓ →</kbd>, serve with <kbd>Enter</kbd>",
+    helpOnline: "Create a room and give the code to a friend, or type a code you got.<br>Once connected: mouse to move, <kbd>Space</kbd> to serve.",
+    helpCpu: "Mouse or <kbd>WASD</kbd> to move the paddle<br><kbd>Space</kbd> serve · <kbd>P</kbd> pause · first to <b>11</b> points",
+    wonP1: "Player 1 wins", wonP2: "Player 2 wins", youWon: "You won", rivalWon: "Your opponent won", cpuWon: "The computer won",
+    hintOnline: "Mouse – move the paddle &nbsp;·&nbsp; <kbd>Space</kbd> serve &nbsp;·&nbsp; <kbd>T</kbd> leave online",
+    hintLocal: "Player 1: mouse or <kbd>WASD</kbd> · <kbd>Space</kbd> serve &nbsp;·&nbsp; Player 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> serve &nbsp;·&nbsp; <kbd>P</kbd> pause",
+    hintCpu: "Mouse – move the paddle &nbsp;·&nbsp; <kbd>Space</kbd> serve &nbsp;·&nbsp; <kbd>P</kbd> pause &nbsp;·&nbsp; <kbd>R</kbd> new game &nbsp;·&nbsp; <kbd>M</kbd> sound &nbsp;·&nbsp; <kbd>O</kbd> online",
+    paused: "Paused", pausedMsg: "Press <b>P</b>, <b>Space</b> or click the screen to continue.",
+    introOnline: "Waiting for an opponent…",
+    introLocal: "Player 1 on the mouse, player 2 on the arrows.<br>Press <b>Space</b> to start · <b>T</b> goes back to playing the computer.",
+    introCpu: "Move the mouse to control the paddle.<br>Press <b>Space</b> or click to start.<br><b>T</b> two players · <b>O</b> online.",
+    overYouWon: "You won! <span>🏓</span>", overRivalWon: "Your opponent won", overP1: "Player 1 wins! <span>🏓</span>",
+    overP2: "Player 2 wins! <span>🏓</span>", overCpuWon: "The computer won",
+    result: "Score", waitRematch: "Waiting for your opponent to start a new game…", pressNew: "Press <b>Space</b> for a new game.",
+    serveP1: "Player 1 serves — press <b>Space</b>", serveYou: "Your serve — press <b>Space</b>", serveP2: "Player 2 serves — press <b>Enter</b>",
+    pause: "Pause", sound: "Sound"
+  },
+  ar: {
+    title: "بينغ بونغ", logo: "بينغ <span>بونغ</span>",
+    you: "أنت", cpu: "الكمبيوتر", rival: "الخصم", p1: "اللاعب 1", p2: "اللاعب 2",
+    level: "المستوى:", bestRally: "أطول تبادل:",
+    modeCpu: "ضد الكمبيوتر", modeLocal: "لاعبان", modeOnline: "أونلاين",
+    gameMode: "وضع اللعب", difficulty: "مستوى الصعوبة", easy: "سهل", medium: "متوسط", hard: "صعب",
+    room: "غرفة اللعب", createRoom: "أنشئ غرفة", yourCode: "رمزك:", giveFriend: "أعطه لصديق",
+    or: "— أو —", codePh: "رمز", join: "انضم",
+    start: "ابدأ اللعب", connectFirst: "اتصلوا بغرفة أولاً",
+    noWebgl: "هذا المتصفح لا يدعم WebGL.",
+    netConnected: "متصل! لنبدأ.", netClosed: "أُغلق الاتصال.", netError: "خطأ في الاتصال.",
+    netNoLib: "تعذّر تحميل مكتبة الاتصال. تحقق من الإنترنت.", netOpening: "جارٍ فتح غرفة…",
+    netWaiting: "في انتظار انضمام صديق…", netHostFail: "تعذّر فتح غرفة. حاول مرة أخرى.",
+    netNeedCode: "يجب أن يتكون الرمز من 4 أحرف.", netJoining: "جارٍ الاتصال…", netNoRoom: "لم يتم العثور على غرفة بهذا الرمز.",
+    helpLocal: "اللاعب 1: الفأرة أو <kbd>WASD</kbd>، الإرسال بـ<kbd>مسافة</kbd><br>اللاعب 2: <kbd>← ↑ ↓ →</kbd>، الإرسال بـ<kbd>Enter</kbd>",
+    helpOnline: "أنشئ غرفة وأعطِ الرمز لصديق، أو اكتب رمزًا حصلت عليه.<br>بعد الاتصال: الفأرة للتحريك، <kbd>مسافة</kbd> للإرسال.",
+    helpCpu: "الفأرة أو <kbd>WASD</kbd> لتحريك المضرب<br><kbd>مسافة</kbd> إرسال · <kbd>P</kbd> إيقاف مؤقت · المباراة حتى <b>11</b> نقطة",
+    wonP1: "فاز اللاعب 1", wonP2: "فاز اللاعب 2", youWon: "فزت", rivalWon: "فاز الخصم", cpuWon: "فاز الكمبيوتر",
+    hintOnline: "الفأرة – تحريك المضرب &nbsp;·&nbsp; <kbd>مسافة</kbd> إرسال &nbsp;·&nbsp; <kbd>T</kbd> الخروج من الأونلاين",
+    hintLocal: "اللاعب 1: الفأرة أو <kbd>WASD</kbd> · <kbd>مسافة</kbd> إرسال &nbsp;·&nbsp; اللاعب 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> إرسال &nbsp;·&nbsp; <kbd>P</kbd> إيقاف مؤقت",
+    hintCpu: "الفأرة – تحريك المضرب &nbsp;·&nbsp; <kbd>مسافة</kbd> إرسال &nbsp;·&nbsp; <kbd>P</kbd> إيقاف مؤقت &nbsp;·&nbsp; <kbd>R</kbd> مباراة جديدة &nbsp;·&nbsp; <kbd>M</kbd> الصوت &nbsp;·&nbsp; <kbd>O</kbd> أونلاين",
+    paused: "متوقف مؤقتًا", pausedMsg: "اضغط <b>P</b> أو <b>مسافة</b> أو انقر على الشاشة للمتابعة.",
+    introOnline: "في انتظار الخصم…",
+    introLocal: "اللاعب 1 بالفأرة، واللاعب 2 بالأسهم.<br>اضغط <b>مسافة</b> للبدء · <b>T</b> للعودة إلى اللعب ضد الكمبيوتر.",
+    introCpu: "حرّك الفأرة للتحكم في المضرب.<br>اضغط <b>مسافة</b> أو انقر للبدء.<br><b>T</b> لاعبان · <b>O</b> أونلاين.",
+    overYouWon: "فزت! <span>🏓</span>", overRivalWon: "فاز الخصم", overP1: "فاز اللاعب 1! <span>🏓</span>",
+    overP2: "فاز اللاعب 2! <span>🏓</span>", overCpuWon: "فاز الكمبيوتر",
+    result: "النتيجة", waitRematch: "في انتظار أن يبدأ الخصم مباراة جديدة…", pressNew: "اضغط <b>مسافة</b> لمباراة جديدة.",
+    serveP1: "اللاعب 1 يرسل — اضغط <b>مسافة</b>", serveYou: "دورك في الإرسال — اضغط <b>مسافة</b>", serveP2: "اللاعب 2 يرسل — اضغط <b>Enter</b>",
+    pause: "إيقاف مؤقت", sound: "الصوت"
+  },
+  zh: {
+    title: "乒乓球", logo: "乒乓<span>球</span>",
+    you: "你", cpu: "电脑", rival: "对手", p1: "玩家 1", p2: "玩家 2",
+    level: "难度:", bestRally: "最长回合:",
+    modeCpu: "对战电脑", modeLocal: "双人", modeOnline: "在线",
+    gameMode: "游戏模式", difficulty: "难度", easy: "简单", medium: "中等", hard: "困难",
+    room: "游戏房间", createRoom: "创建房间", yourCode: "你的房间码:", giveFriend: "把它发给朋友",
+    or: "— 或 —", codePh: "房间码", join: "加入",
+    start: "开始游戏", connectFirst: "请先连接房间",
+    noWebgl: "此浏览器不支持 WebGL。",
+    netConnected: "已连接!开始吧。", netClosed: "连接已关闭。", netError: "连接错误。",
+    netNoLib: "无法加载连接库,请检查网络。", netOpening: "正在创建房间…",
+    netWaiting: "等待朋友加入…", netHostFail: "无法创建房间,请重试。",
+    netNeedCode: "房间码需要 4 个字符。", netJoining: "正在连接…", netNoRoom: "找不到这个房间码对应的房间。",
+    helpLocal: "玩家 1:鼠标或 <kbd>WASD</kbd>,<kbd>空格</kbd> 发球<br>玩家 2:<kbd>← ↑ ↓ →</kbd>,<kbd>Enter</kbd> 发球",
+    helpOnline: "创建房间并把房间码发给朋友,或输入你收到的房间码。<br>连接后:鼠标移动,<kbd>空格</kbd> 发球。",
+    helpCpu: "鼠标或 <kbd>WASD</kbd> 移动球拍<br><kbd>空格</kbd> 发球 · <kbd>P</kbd> 暂停 · 先得 <b>11</b> 分获胜",
+    wonP1: "玩家 1 获胜", wonP2: "玩家 2 获胜", youWon: "你赢了", rivalWon: "对手赢了", cpuWon: "电脑赢了",
+    hintOnline: "鼠标 – 移动球拍 &nbsp;·&nbsp; <kbd>空格</kbd> 发球 &nbsp;·&nbsp; <kbd>T</kbd> 退出在线",
+    hintLocal: "玩家 1:鼠标或 <kbd>WASD</kbd> · <kbd>空格</kbd> 发球 &nbsp;·&nbsp; 玩家 2:<kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> 发球 &nbsp;·&nbsp; <kbd>P</kbd> 暂停",
+    hintCpu: "鼠标 – 移动球拍 &nbsp;·&nbsp; <kbd>空格</kbd> 发球 &nbsp;·&nbsp; <kbd>P</kbd> 暂停 &nbsp;·&nbsp; <kbd>R</kbd> 新游戏 &nbsp;·&nbsp; <kbd>M</kbd> 声音 &nbsp;·&nbsp; <kbd>O</kbd> 在线",
+    paused: "已暂停", pausedMsg: "按 <b>P</b>、<b>空格</b> 或点击屏幕继续。",
+    introOnline: "等待对手…",
+    introLocal: "玩家 1 用鼠标,玩家 2 用方向键。<br>按 <b>空格</b> 开始 · <b>T</b> 返回对战电脑。",
+    introCpu: "移动鼠标来控制球拍。<br>按 <b>空格</b> 或点击开始。<br><b>T</b> 双人 · <b>O</b> 在线。",
+    overYouWon: "你赢了! <span>🏓</span>", overRivalWon: "对手赢了", overP1: "玩家 1 获胜! <span>🏓</span>",
+    overP2: "玩家 2 获胜! <span>🏓</span>", overCpuWon: "电脑赢了",
+    result: "比分", waitRematch: "等待对手开始新游戏…", pressNew: "按 <b>空格</b> 开始新游戏。",
+    serveP1: "玩家 1 发球 — 按 <b>空格</b>", serveYou: "轮到你发球 — 按 <b>空格</b>", serveP2: "玩家 2 发球 — 按 <b>Enter</b>",
+    pause: "暂停", sound: "声音"
+  },
+  es: {
+    title: "Ping Pong", logo: "Ping <span>Pong</span>",
+    you: "Tú", cpu: "Computadora", rival: "Rival", p1: "Jugador 1", p2: "Jugador 2",
+    level: "Nivel:", bestRally: "Mejor peloteo:",
+    modeCpu: "Vs. computadora", modeLocal: "2 jugadores", modeOnline: "En línea",
+    gameMode: "Modo de juego", difficulty: "Dificultad", easy: "Fácil", medium: "Medio", hard: "Difícil",
+    room: "Sala de juego", createRoom: "Crear sala", yourCode: "Tu código:", giveFriend: "Dáselo a un amigo",
+    or: "— o —", codePh: "Código", join: "Unirse",
+    start: "Empezar partida", connectFirst: "Primero conéctense a una sala",
+    noWebgl: "Este navegador no es compatible con WebGL.",
+    netConnected: "¡Conectado! Empezamos.", netClosed: "La conexión se cerró.", netError: "Error de conexión.",
+    netNoLib: "No se pudo cargar la biblioteca de conexión. Revisa tu internet.", netOpening: "Abriendo sala…",
+    netWaiting: "Esperando a que un amigo se una…", netHostFail: "No se pudo abrir la sala. Inténtalo de nuevo.",
+    netNeedCode: "El código debe tener 4 caracteres.", netJoining: "Conectando…", netNoRoom: "No se encontró ninguna sala con ese código.",
+    helpLocal: "Jugador 1: ratón o <kbd>WASD</kbd>, saca con <kbd>Espacio</kbd><br>Jugador 2: <kbd>← ↑ ↓ →</kbd>, saca con <kbd>Enter</kbd>",
+    helpOnline: "Crea una sala y dale el código a un amigo, o escribe un código que recibiste.<br>Ya conectados: ratón para moverte, <kbd>Espacio</kbd> para sacar.",
+    helpCpu: "Ratón o <kbd>WASD</kbd> para mover la pala<br><kbd>Espacio</kbd> saque · <kbd>P</kbd> pausa · la partida es a <b>11</b> puntos",
+    wonP1: "Gana el jugador 1", wonP2: "Gana el jugador 2", youWon: "Ganaste", rivalWon: "Ganó tu rival", cpuWon: "Ganó la computadora",
+    hintOnline: "Ratón – mover la pala &nbsp;·&nbsp; <kbd>Espacio</kbd> saque &nbsp;·&nbsp; <kbd>T</kbd> salir del modo en línea",
+    hintLocal: "Jugador 1: ratón o <kbd>WASD</kbd> · <kbd>Espacio</kbd> saque &nbsp;·&nbsp; Jugador 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> saque &nbsp;·&nbsp; <kbd>P</kbd> pausa",
+    hintCpu: "Ratón – mover la pala &nbsp;·&nbsp; <kbd>Espacio</kbd> saque &nbsp;·&nbsp; <kbd>P</kbd> pausa &nbsp;·&nbsp; <kbd>R</kbd> partida nueva &nbsp;·&nbsp; <kbd>M</kbd> sonido &nbsp;·&nbsp; <kbd>O</kbd> en línea",
+    paused: "En pausa", pausedMsg: "Pulsa <b>P</b>, <b>Espacio</b> o haz clic en la pantalla para seguir.",
+    introOnline: "Esperando al rival…",
+    introLocal: "Jugador 1 con el ratón, jugador 2 con las flechas.<br>Pulsa <b>Espacio</b> para empezar · <b>T</b> vuelve a jugar contra la computadora.",
+    introCpu: "Mueve el ratón para controlar la pala.<br>Pulsa <b>Espacio</b> o haz clic para empezar.<br><b>T</b> dos jugadores · <b>O</b> en línea.",
+    overYouWon: "¡Ganaste! <span>🏓</span>", overRivalWon: "Ganó tu rival", overP1: "¡Gana el jugador 1! <span>🏓</span>",
+    overP2: "¡Gana el jugador 2! <span>🏓</span>", overCpuWon: "Ganó la computadora",
+    result: "Resultado", waitRematch: "Esperando a que tu rival empiece otra partida…", pressNew: "Pulsa <b>Espacio</b> para una partida nueva.",
+    serveP1: "Saca el jugador 1 — pulsa <b>Espacio</b>", serveYou: "Te toca sacar — pulsa <b>Espacio</b>", serveP2: "Saca el jugador 2 — pulsa <b>Enter</b>",
+    pause: "Pausa", sound: "Sonido"
+  },
+  fr: {
+    title: "Ping-pong", logo: "Ping <span>Pong</span>",
+    you: "Toi", cpu: "Ordinateur", rival: "Adversaire", p1: "Joueur 1", p2: "Joueur 2",
+    level: "Niveau :", bestRally: "Meilleur échange :",
+    modeCpu: "Vs ordinateur", modeLocal: "2 joueurs", modeOnline: "En ligne",
+    gameMode: "Mode de jeu", difficulty: "Difficulté", easy: "Facile", medium: "Moyen", hard: "Difficile",
+    room: "Salon de jeu", createRoom: "Créer un salon", yourCode: "Ton code :", giveFriend: "Donne-le à un ami",
+    or: "— ou —", codePh: "Code", join: "Rejoindre",
+    start: "Commencer", connectFirst: "Connectez-vous d'abord à un salon",
+    noWebgl: "Ce navigateur ne prend pas en charge WebGL.",
+    netConnected: "Connecté ! C'est parti.", netClosed: "La connexion a été fermée.", netError: "Erreur de connexion.",
+    netNoLib: "Impossible de charger la bibliothèque de connexion. Vérifie ta connexion internet.", netOpening: "Ouverture du salon…",
+    netWaiting: "En attente d'un ami…", netHostFail: "Impossible d'ouvrir un salon. Réessaie.",
+    netNeedCode: "Le code doit faire 4 caractères.", netJoining: "Connexion…", netNoRoom: "Aucun salon trouvé avec ce code.",
+    helpLocal: "Joueur 1 : souris ou <kbd>WASD</kbd>, service avec <kbd>Espace</kbd><br>Joueur 2 : <kbd>← ↑ ↓ →</kbd>, service avec <kbd>Entrée</kbd>",
+    helpOnline: "Crée un salon et donne le code à un ami, ou tape un code reçu.<br>Une fois connectés : souris pour bouger, <kbd>Espace</kbd> pour servir.",
+    helpCpu: "Souris ou <kbd>WASD</kbd> pour bouger la raquette<br><kbd>Espace</kbd> service · <kbd>P</kbd> pause · la partie se joue en <b>11</b> points",
+    wonP1: "Le joueur 1 gagne", wonP2: "Le joueur 2 gagne", youWon: "Tu as gagné", rivalWon: "Ton adversaire a gagné", cpuWon: "L'ordinateur a gagné",
+    hintOnline: "Souris – bouger la raquette &nbsp;·&nbsp; <kbd>Espace</kbd> service &nbsp;·&nbsp; <kbd>T</kbd> quitter le mode en ligne",
+    hintLocal: "Joueur 1 : souris ou <kbd>WASD</kbd> · <kbd>Espace</kbd> service &nbsp;·&nbsp; Joueur 2 : <kbd>← ↑ ↓ →</kbd> · <kbd>Entrée</kbd> service &nbsp;·&nbsp; <kbd>P</kbd> pause",
+    hintCpu: "Souris – bouger la raquette &nbsp;·&nbsp; <kbd>Espace</kbd> service &nbsp;·&nbsp; <kbd>P</kbd> pause &nbsp;·&nbsp; <kbd>R</kbd> nouvelle partie &nbsp;·&nbsp; <kbd>M</kbd> son &nbsp;·&nbsp; <kbd>O</kbd> en ligne",
+    paused: "Pause", pausedMsg: "Appuie sur <b>P</b>, <b>Espace</b> ou clique sur l'écran pour continuer.",
+    introOnline: "En attente de l'adversaire…",
+    introLocal: "Joueur 1 à la souris, joueur 2 aux flèches.<br>Appuie sur <b>Espace</b> pour commencer · <b>T</b> revient au jeu contre l'ordinateur.",
+    introCpu: "Bouge la souris pour contrôler la raquette.<br>Appuie sur <b>Espace</b> ou clique pour commencer.<br><b>T</b> deux joueurs · <b>O</b> en ligne.",
+    overYouWon: "Tu as gagné ! <span>🏓</span>", overRivalWon: "Ton adversaire a gagné", overP1: "Le joueur 1 gagne ! <span>🏓</span>",
+    overP2: "Le joueur 2 gagne ! <span>🏓</span>", overCpuWon: "L'ordinateur a gagné",
+    result: "Score", waitRematch: "En attente que ton adversaire lance une nouvelle partie…", pressNew: "Appuie sur <b>Espace</b> pour une nouvelle partie.",
+    serveP1: "Service du joueur 1 — appuie sur <b>Espace</b>", serveYou: "À toi de servir — appuie sur <b>Espace</b>", serveP2: "Service du joueur 2 — appuie sur <b>Entrée</b>",
+    pause: "Pause", sound: "Son"
+  },
+  pt: {
+    title: "Ping Pong", logo: "Ping <span>Pong</span>",
+    you: "Você", cpu: "Computador", rival: "Adversário", p1: "Jogador 1", p2: "Jogador 2",
+    level: "Nível:", bestRally: "Melhor rali:",
+    modeCpu: "Vs. computador", modeLocal: "2 jogadores", modeOnline: "Online",
+    gameMode: "Modo de jogo", difficulty: "Dificuldade", easy: "Fácil", medium: "Médio", hard: "Difícil",
+    room: "Sala de jogo", createRoom: "Criar sala", yourCode: "Seu código:", giveFriend: "Passe para um amigo",
+    or: "— ou —", codePh: "Código", join: "Entrar",
+    start: "Começar jogo", connectFirst: "Conectem-se a uma sala primeiro",
+    noWebgl: "Este navegador não suporta WebGL.",
+    netConnected: "Conectado! Vamos lá.", netClosed: "A conexão foi encerrada.", netError: "Erro de conexão.",
+    netNoLib: "Não foi possível carregar a biblioteca de conexão. Verifique sua internet.", netOpening: "Abrindo sala…",
+    netWaiting: "Esperando um amigo entrar…", netHostFail: "Não foi possível abrir a sala. Tente de novo.",
+    netNeedCode: "O código precisa ter 4 caracteres.", netJoining: "Conectando…", netNoRoom: "Nenhuma sala encontrada com esse código.",
+    helpLocal: "Jogador 1: mouse ou <kbd>WASD</kbd>, saca com <kbd>Espaço</kbd><br>Jogador 2: <kbd>← ↑ ↓ →</kbd>, saca com <kbd>Enter</kbd>",
+    helpOnline: "Crie uma sala e passe o código para um amigo, ou digite um código que você recebeu.<br>Depois de conectar: mouse para mover, <kbd>Espaço</kbd> para sacar.",
+    helpCpu: "Mouse ou <kbd>WASD</kbd> para mover a raquete<br><kbd>Espaço</kbd> saque · <kbd>P</kbd> pausa · a partida vai até <b>11</b> pontos",
+    wonP1: "O jogador 1 venceu", wonP2: "O jogador 2 venceu", youWon: "Você venceu", rivalWon: "Seu adversário venceu", cpuWon: "O computador venceu",
+    hintOnline: "Mouse – mover a raquete &nbsp;·&nbsp; <kbd>Espaço</kbd> saque &nbsp;·&nbsp; <kbd>T</kbd> sair do online",
+    hintLocal: "Jogador 1: mouse ou <kbd>WASD</kbd> · <kbd>Espaço</kbd> saque &nbsp;·&nbsp; Jogador 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> saque &nbsp;·&nbsp; <kbd>P</kbd> pausa",
+    hintCpu: "Mouse – mover a raquete &nbsp;·&nbsp; <kbd>Espaço</kbd> saque &nbsp;·&nbsp; <kbd>P</kbd> pausa &nbsp;·&nbsp; <kbd>R</kbd> novo jogo &nbsp;·&nbsp; <kbd>M</kbd> som &nbsp;·&nbsp; <kbd>O</kbd> online",
+    paused: "Pausado", pausedMsg: "Aperte <b>P</b>, <b>Espaço</b> ou clique na tela para continuar.",
+    introOnline: "Esperando o adversário…",
+    introLocal: "Jogador 1 no mouse, jogador 2 nas setas.<br>Aperte <b>Espaço</b> para começar · <b>T</b> volta a jogar contra o computador.",
+    introCpu: "Mova o mouse para controlar a raquete.<br>Aperte <b>Espaço</b> ou clique para começar.<br><b>T</b> dois jogadores · <b>O</b> online.",
+    overYouWon: "Você venceu! <span>🏓</span>", overRivalWon: "Seu adversário venceu", overP1: "O jogador 1 venceu! <span>🏓</span>",
+    overP2: "O jogador 2 venceu! <span>🏓</span>", overCpuWon: "O computador venceu",
+    result: "Placar", waitRematch: "Esperando seu adversário começar um novo jogo…", pressNew: "Aperte <b>Espaço</b> para um novo jogo.",
+    serveP1: "Jogador 1 saca — aperte <b>Espaço</b>", serveYou: "Sua vez de sacar — aperte <b>Espaço</b>", serveP2: "Jogador 2 saca — aperte <b>Enter</b>",
+    pause: "Pausa", sound: "Som"
+  },
+  ru: {
+    title: "Пинг-понг", logo: "Пинг-<span>понг</span>",
+    you: "Ты", cpu: "Компьютер", rival: "Соперник", p1: "Игрок 1", p2: "Игрок 2",
+    level: "Уровень:", bestRally: "Лучший розыгрыш:",
+    modeCpu: "С компьютером", modeLocal: "2 игрока", modeOnline: "Онлайн",
+    gameMode: "Режим игры", difficulty: "Сложность", easy: "Легко", medium: "Средне", hard: "Сложно",
+    room: "Игровая комната", createRoom: "Создать комнату", yourCode: "Твой код:", giveFriend: "Отправь его другу",
+    or: "— или —", codePh: "Код", join: "Войти",
+    start: "Начать игру", connectFirst: "Сначала подключитесь к комнате",
+    noWebgl: "Этот браузер не поддерживает WebGL.",
+    netConnected: "Подключено! Начинаем.", netClosed: "Соединение закрыто.", netError: "Ошибка соединения.",
+    netNoLib: "Не удалось загрузить библиотеку для связи. Проверь интернет.", netOpening: "Открываю комнату…",
+    netWaiting: "Ждём, пока друг подключится…", netHostFail: "Не удалось открыть комнату. Попробуй ещё раз.",
+    netNeedCode: "Код должен состоять из 4 символов.", netJoining: "Подключаюсь…", netNoRoom: "Комната с таким кодом не найдена.",
+    helpLocal: "Игрок 1: мышь или <kbd>WASD</kbd>, подача — <kbd>Пробел</kbd><br>Игрок 2: <kbd>← ↑ ↓ →</kbd>, подача — <kbd>Enter</kbd>",
+    helpOnline: "Создай комнату и отправь код другу или введи код, который получил.<br>После подключения: мышь — движение, <kbd>Пробел</kbd> — подача.",
+    helpCpu: "Мышь или <kbd>WASD</kbd> — движение ракетки<br><kbd>Пробел</kbd> подача · <kbd>P</kbd> пауза · игра до <b>11</b> очков",
+    wonP1: "Игрок 1 победил", wonP2: "Игрок 2 победил", youWon: "Ты победил", rivalWon: "Соперник победил", cpuWon: "Компьютер победил",
+    hintOnline: "Мышь – движение ракетки &nbsp;·&nbsp; <kbd>Пробел</kbd> подача &nbsp;·&nbsp; <kbd>T</kbd> выйти из онлайна",
+    hintLocal: "Игрок 1: мышь или <kbd>WASD</kbd> · <kbd>Пробел</kbd> подача &nbsp;·&nbsp; Игрок 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> подача &nbsp;·&nbsp; <kbd>P</kbd> пауза",
+    hintCpu: "Мышь – движение ракетки &nbsp;·&nbsp; <kbd>Пробел</kbd> подача &nbsp;·&nbsp; <kbd>P</kbd> пауза &nbsp;·&nbsp; <kbd>R</kbd> новая игра &nbsp;·&nbsp; <kbd>M</kbd> звук &nbsp;·&nbsp; <kbd>O</kbd> онлайн",
+    paused: "Пауза", pausedMsg: "Нажми <b>P</b>, <b>Пробел</b> или на экран, чтобы продолжить.",
+    introOnline: "Ждём соперника…",
+    introLocal: "Игрок 1 — мышью, игрок 2 — стрелками.<br>Нажми <b>Пробел</b>, чтобы начать · <b>T</b> — снова играть с компьютером.",
+    introCpu: "Двигай мышь, чтобы управлять ракеткой.<br>Нажми <b>Пробел</b> или кликни, чтобы начать.<br><b>T</b> два игрока · <b>O</b> онлайн.",
+    overYouWon: "Ты победил! <span>🏓</span>", overRivalWon: "Соперник победил", overP1: "Игрок 1 победил! <span>🏓</span>",
+    overP2: "Игрок 2 победил! <span>🏓</span>", overCpuWon: "Компьютер победил",
+    result: "Счёт", waitRematch: "Ждём, пока соперник начнёт новую игру…", pressNew: "Нажми <b>Пробел</b> для новой игры.",
+    serveP1: "Подаёт игрок 1 — нажми <b>Пробел</b>", serveYou: "Твоя подача — нажми <b>Пробел</b>", serveP2: "Подаёт игрок 2 — нажми <b>Enter</b>",
+    pause: "Пауза", sound: "Звук"
+  },
+  de: {
+    title: "Ping Pong", logo: "Ping <span>Pong</span>",
+    you: "Du", cpu: "Computer", rival: "Gegner", p1: "Spieler 1", p2: "Spieler 2",
+    level: "Stufe:", bestRally: "Bester Ballwechsel:",
+    modeCpu: "Gegen Computer", modeLocal: "2 Spieler", modeOnline: "Online",
+    gameMode: "Spielmodus", difficulty: "Schwierigkeit", easy: "Leicht", medium: "Mittel", hard: "Schwer",
+    room: "Spielraum", createRoom: "Raum erstellen", yourCode: "Dein Code:", giveFriend: "Gib ihn einem Freund",
+    or: "— oder —", codePh: "Code", join: "Beitreten",
+    start: "Spiel starten", connectFirst: "Verbindet euch zuerst mit einem Raum",
+    noWebgl: "Dieser Browser unterstützt kein WebGL.",
+    netConnected: "Verbunden! Los geht's.", netClosed: "Die Verbindung wurde getrennt.", netError: "Verbindungsfehler.",
+    netNoLib: "Die Verbindungsbibliothek konnte nicht geladen werden. Prüfe dein Internet.", netOpening: "Raum wird geöffnet…",
+    netWaiting: "Warte darauf, dass ein Freund beitritt…", netHostFail: "Raum konnte nicht geöffnet werden. Versuch es noch mal.",
+    netNeedCode: "Der Code muss 4 Zeichen haben.", netJoining: "Verbinde…", netNoRoom: "Kein Raum mit diesem Code gefunden.",
+    helpLocal: "Spieler 1: Maus oder <kbd>WASD</kbd>, Aufschlag mit <kbd>Leertaste</kbd><br>Spieler 2: <kbd>← ↑ ↓ →</kbd>, Aufschlag mit <kbd>Enter</kbd>",
+    helpOnline: "Erstelle einen Raum und gib den Code einem Freund, oder tippe einen Code ein, den du bekommen hast.<br>Nach dem Verbinden: Maus zum Bewegen, <kbd>Leertaste</kbd> zum Aufschlagen.",
+    helpCpu: "Maus oder <kbd>WASD</kbd> bewegt den Schläger<br><kbd>Leertaste</kbd> Aufschlag · <kbd>P</kbd> Pause · gespielt wird bis <b>11</b> Punkte",
+    wonP1: "Spieler 1 gewinnt", wonP2: "Spieler 2 gewinnt", youWon: "Du hast gewonnen", rivalWon: "Dein Gegner hat gewonnen", cpuWon: "Der Computer hat gewonnen",
+    hintOnline: "Maus – Schläger bewegen &nbsp;·&nbsp; <kbd>Leertaste</kbd> Aufschlag &nbsp;·&nbsp; <kbd>T</kbd> Online verlassen",
+    hintLocal: "Spieler 1: Maus oder <kbd>WASD</kbd> · <kbd>Leertaste</kbd> Aufschlag &nbsp;·&nbsp; Spieler 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> Aufschlag &nbsp;·&nbsp; <kbd>P</kbd> Pause",
+    hintCpu: "Maus – Schläger bewegen &nbsp;·&nbsp; <kbd>Leertaste</kbd> Aufschlag &nbsp;·&nbsp; <kbd>P</kbd> Pause &nbsp;·&nbsp; <kbd>R</kbd> neues Spiel &nbsp;·&nbsp; <kbd>M</kbd> Ton &nbsp;·&nbsp; <kbd>O</kbd> online",
+    paused: "Pausiert", pausedMsg: "Drück <b>P</b>, die <b>Leertaste</b> oder auf den Bildschirm, um weiterzuspielen.",
+    introOnline: "Warte auf den Gegner…",
+    introLocal: "Spieler 1 mit der Maus, Spieler 2 mit den Pfeiltasten.<br>Drück die <b>Leertaste</b> zum Starten · <b>T</b> zurück zum Spiel gegen den Computer.",
+    introCpu: "Beweg die Maus, um den Schläger zu steuern.<br>Drück die <b>Leertaste</b> oder klick zum Starten.<br><b>T</b> zwei Spieler · <b>O</b> online.",
+    overYouWon: "Du hast gewonnen! <span>🏓</span>", overRivalWon: "Dein Gegner hat gewonnen", overP1: "Spieler 1 gewinnt! <span>🏓</span>",
+    overP2: "Spieler 2 gewinnt! <span>🏓</span>", overCpuWon: "Der Computer hat gewonnen",
+    result: "Ergebnis", waitRematch: "Warte, bis dein Gegner ein neues Spiel startet…", pressNew: "Drück die <b>Leertaste</b> für ein neues Spiel.",
+    serveP1: "Spieler 1 schlägt auf — drück die <b>Leertaste</b>", serveYou: "Dein Aufschlag — drück die <b>Leertaste</b>", serveP2: "Spieler 2 schlägt auf — drück <b>Enter</b>",
+    pause: "Pause", sound: "Ton"
+  }
+};
+const LANGS = Object.keys(TR);
+const LANG = (function () {
+  let l = null;
+  try { l = new URLSearchParams(location.search).get("lang"); } catch (e) {}
+  try {
+    if (LANGS.includes(l)) localStorage.setItem("pp3d:lang", l);
+    else l = localStorage.getItem("pp3d:lang");
+  } catch (e) {}
+  return LANGS.includes(l) ? l : "he";
+})();
+const t = (k) => TR[LANG][k] || TR.he[k] || k;
+
+document.documentElement.lang = LANG;
+document.documentElement.dir = LANG === "he" || LANG === "ar" ? "rtl" : "ltr";
+document.title = t("title");
+document.querySelectorAll("[data-t]").forEach(e => { e.innerHTML = t(e.dataset.t); });
+document.querySelectorAll("[data-tph]").forEach(e => { e.placeholder = t(e.dataset.tph); });
+document.querySelectorAll("[data-tl]").forEach(e => { e.title = t(e.dataset.tl); e.setAttribute("aria-label", e.title); });
+
 /* ------------------------------------------------------------- gl ---- */
 const canvas = document.getElementById("gl");
 const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
 if (!gl) {
-  document.getElementById("msg").textContent = "הדפדפן הזה לא תומך ב-WebGL.";
+  document.getElementById("msg").textContent = t("noWebgl");
   throw new Error("no webgl");
 }
 
@@ -478,9 +787,9 @@ const HALF_W = TABLE_W / 2;
 const HALF_L = TABLE_L / 2;
 
 const DIFFS = [
-  { name: "קל",    speed: 2.1, err: 0.34, react: 0.45, flight: 0.72 },
-  { name: "בינוני", speed: 3.2, err: 0.18, react: 0.72, flight: 0.62 },
-  { name: "קשה",   speed: 4.4, err: 0.07, react: 0.92, flight: 0.54 }
+  { name: t("easy"),   speed: 2.1, err: 0.34, react: 0.45, flight: 0.72 },
+  { name: t("medium"), speed: 3.2, err: 0.18, react: 0.72, flight: 0.62 },
+  { name: t("hard"),   speed: 4.4, err: 0.07, react: 0.92, flight: 0.54 }
 ];
 
 const game = {
@@ -656,7 +965,7 @@ function wireConn(conn) {
   net.conn = conn;
   conn.on("open", () => {
     net.ready = true;
-    netSay("מחובר! מתחילים.", "ok");
+    netSay(t("netConnected"), "ok");
     setTimeout(() => closeMenu(), 900);
     game.mode = "online";
     resetMatch();
@@ -664,39 +973,39 @@ function wireConn(conn) {
     updateHud();
   });
   conn.on("data", onNetData);
-  conn.on("close", () => { netSay("החיבור נסגר.", "err"); backToOffline(); });
-  conn.on("error", () => { netSay("שגיאת חיבור.", "err"); backToOffline(); });
+  conn.on("close", () => { netSay(t("netClosed"), "err"); backToOffline(); });
+  conn.on("error", () => { netSay(t("netError"), "err"); backToOffline(); });
 }
 
 async function netHost() {
-  try { await loadPeer(); } catch (e) { return netSay("לא הצלחתי לטעון את ספריית החיבור. בדוק אינטרנט.", "err"); }
+  try { await loadPeer(); } catch (e) { return netSay(t("netNoLib"), "err"); }
   netTeardown();
   net.role = "host";
   net.code = makeCode();
-  netSay("פותח חדר…");
+  netSay(t("netOpening"));
   net.peer = new Peer(ROOM_PREFIX + net.code);
   net.peer.on("open", () => {
     netEl.netCode.textContent = net.code;
     netEl.netCodeWrap.classList.add("on");
-    netSay("ממתין שחבר יצטרף…");
+    netSay(t("netWaiting"));
   });
   net.peer.on("connection", wireConn);
   net.peer.on("error", (err) => {
     if (String(err && err.type) === "unavailable-id") { net.code = makeCode(); netHost(); return; }
-    netSay("לא הצלחתי לפתוח חדר. נסה שוב.", "err");
+    netSay(t("netHostFail"), "err");
   });
 }
 
 async function netJoin() {
   const code = (netEl.netInput.value || "").trim().toUpperCase();
-  if (code.length !== 4) return netSay("צריך קוד בן 4 תווים.", "err");
-  try { await loadPeer(); } catch (e) { return netSay("לא הצלחתי לטעון את ספריית החיבור. בדוק אינטרנט.", "err"); }
+  if (code.length !== 4) return netSay(t("netNeedCode"), "err");
+  try { await loadPeer(); } catch (e) { return netSay(t("netNoLib"), "err"); }
   netTeardown();
   net.role = "guest";
-  netSay("מתחבר…");
+  netSay(t("netJoining"));
   net.peer = new Peer();
   net.peer.on("open", () => wireConn(net.peer.connect(ROOM_PREFIX + code)));
-  net.peer.on("error", () => netSay("לא נמצא חדר עם הקוד הזה.", "err"));
+  net.peer.on("error", () => netSay(t("netNoRoom"), "err"));
 }
 
 function netSend(obj) {
@@ -769,14 +1078,9 @@ function refreshMenu() {
 
   const waiting = game.mode === "online" && !net.ready;
   mStart.disabled = waiting;
-  mStart.textContent = waiting ? "התחברו קודם לחדר" : "התחל משחק";
+  mStart.textContent = waiting ? t("connectFirst") : t("start");
 
-  mHelp.innerHTML =
-    game.mode === "local"
-      ? 'שחקן 1: עכבר או <kbd>WASD</kbd>, מגיש ב<kbd>רווח</kbd><br>שחקן 2: <kbd>← ↑ ↓ →</kbd>, מגיש ב<kbd>Enter</kbd>'
-      : game.mode === "online"
-      ? 'צור חדר ותן את הקוד לחבר, או הקלד קוד שקיבלת.<br>אחרי החיבור: עכבר להזזה, <kbd>רווח</kbd> להגשה.'
-      : 'עכבר או <kbd>WASD</kbd> להזזת המחבט<br><kbd>רווח</kbd> הגשה · <kbd>P</kbd> השהיה · המשחק עד <b>11</b> נקודות';
+  mHelp.innerHTML = t(game.mode === "local" ? "helpLocal" : game.mode === "online" ? "helpOnline" : "helpCpu");
 }
 
 function openMenu(resultHtml) {
@@ -939,10 +1243,9 @@ function scorePoint(who) {
     game.phase = "over";
     sfx.win();
     const won = game.winner === "me";
-    const who = game.mode === "local" ? (won ? "שחקן 1" : "שחקן 2")
-              : game.mode === "online" ? (won ? "ניצחת" : "היריב ניצח")
-              : (won ? "ניצחת" : "המחשב ניצח");
-    const head = game.mode === "local" ? who + " ניצח" : who;
+    const head = t(game.mode === "local" ? (won ? "wonP1" : "wonP2")
+                 : game.mode === "online" ? (won ? "youWon" : "rivalWon")
+                 : (won ? "youWon" : "cpuWon"));
     // אם בינתיים כבר התחילו משחק חדש ברווח, התפריט לא קופץ עליו באמצע
     setTimeout(() => { if (game.phase === "over") openMenu(head + '<br><b>' + game.scoreMe + ' : ' + game.scoreCpu + '</b>'); }, 1400);
   } else {
@@ -1175,48 +1478,37 @@ function updateHud() {
 
   const two = game.mode === "local";
   const on = game.mode === "online";
-  elLabelMe.textContent = two ? "שחקן 1" : "אתה";
-  elLabelCpu.textContent = on ? "יריב" : (two ? "שחקן 2" : "מחשב");
-  elModeName.textContent = on ? "אונליין" : (two ? "2 שחקנים" : "מול המחשב");
+  elLabelMe.textContent = t(two ? "p1" : "you");
+  elLabelCpu.textContent = t(on ? "rival" : (two ? "p2" : "cpu"));
+  elModeName.textContent = t(on ? "modeOnline" : (two ? "modeLocal" : "modeCpu"));
   elBestRally.textContent = bestRally;
-  elHintText.innerHTML = on
-    ? 'עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>T</kbd> יציאה מאונליין'
-    : two
-    ? 'שחקן 1: עכבר או <kbd>WASD</kbd> · <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; שחקן 2: <kbd>← ↑ ↓ →</kbd> · <kbd>Enter</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה'
-    : 'עכבר – הזזת המחבט &nbsp;·&nbsp; <kbd>רווח</kbd> הגשה &nbsp;·&nbsp; <kbd>P</kbd> השהיה &nbsp;·&nbsp; <kbd>R</kbd> משחק חדש &nbsp;·&nbsp; <kbd>M</kbd> צליל &nbsp;·&nbsp; <kbd>O</kbd> אונליין';
+  elHintText.innerHTML = t(on ? "hintOnline" : two ? "hintLocal" : "hintCpu");
 
   if (menuEl.classList.contains("open")) {
     el.center.classList.add("hidden");   // אחרת שתי שכבות היו נערמות
   } else if (game.paused) {
     el.center.classList.remove("hidden");
-    el.title.innerHTML = 'מושהה';
-    el.msg.innerHTML = 'לחץ <b>P</b>, <b>רווח</b> או על המסך כדי להמשיך.';
+    el.title.innerHTML = t("paused");
+    el.msg.innerHTML = t("pausedMsg");
   } else if (game.phase === "intro") {
     el.center.classList.remove("hidden");
-    el.title.innerHTML = 'פינג <span>פונג</span>';
-    el.msg.innerHTML = on
-      ? 'ממתין ליריב…'
-      : two
-      ? 'שחקן 1 בעכבר, שחקן 2 בחצים.<br>לחץ <b>רווח</b> להתחיל · <b>T</b> חוזר למשחק מול המחשב.'
-      : 'הזז את העכבר כדי לשלוט במחבט.<br>לחץ <b>רווח</b> או קליק כדי להתחיל.<br><b>T</b> שני שחקנים · <b>O</b> אונליין.';
+    el.title.innerHTML = t("logo");
+    el.msg.innerHTML = t(on ? "introOnline" : two ? "introLocal" : "introCpu");
   } else if (game.phase === "over") {
     el.center.classList.remove("hidden");
     const iWon = game.winner === "me";
-    el.title.innerHTML = on
-      ? (iWon ? 'ניצחת! <span>🏓</span>' : 'היריב ניצח')
-      : two
-      ? (iWon ? 'שחקן 1 ניצח! <span>🏓</span>' : 'שחקן 2 ניצח! <span>🏓</span>')
-      : (iWon ? 'ניצחת! <span>🏓</span>' : 'המחשב ניצח');
-    el.msg.innerHTML = `התוצאה <b>${game.scoreMe} : ${game.scoreCpu}</b><br>` +
-      (isGuest() ? 'ממתין שהיריב יפתח משחק חדש…' : 'לחץ <b>רווח</b> למשחק חדש.');
+    el.title.innerHTML = t(on ? (iWon ? "overYouWon" : "overRivalWon")
+                         : two ? (iWon ? "overP1" : "overP2")
+                         : (iWon ? "overYouWon" : "overCpuWon"));
+    el.msg.innerHTML = `${t("result")} <b>${game.scoreMe} : ${game.scoreCpu}</b><br>` + t(isGuest() ? "waitRematch" : "pressNew");
   } else if (game.phase === "serve" && game.server === "me") {
     el.center.classList.remove("hidden");
     el.title.innerHTML = '';
-    el.msg.innerHTML = two ? 'שחקן 1 מגיש — לחץ <b>רווח</b>' : 'התור שלך להגיש — לחץ <b>רווח</b>';
+    el.msg.innerHTML = t(two ? "serveP1" : "serveYou");
   } else if (game.phase === "serve" && game.server === "cpu" && two) {
     el.center.classList.remove("hidden");
     el.title.innerHTML = '';
-    el.msg.innerHTML = 'שחקן 2 מגיש — לחץ <b>Enter</b>';
+    el.msg.innerHTML = t("serveP2");
   } else {
     el.center.classList.add("hidden");
   }
