@@ -71,9 +71,18 @@
     font-size: 13px; color: var(--dim);
   }
   #diff b { color: var(--ink); }
+  /* כפתורי השהיה וצליל, כי במסך מגע אין P ואין M */
+  #ctrl { position: absolute; top: 18px; left: 18px; display: flex; gap: 8px; pointer-events: auto; }
+  #ctrl button {
+    width: 42px; height: 42px; border-radius: 50%; cursor: pointer;
+    font: inherit; font-size: 17px; line-height: 1; color: var(--ink);
+    background: rgba(8, 14, 26, 0.62); border: 1px solid rgba(140, 175, 225, 0.18);
+  }
+  #ctrl button:hover { border-color: var(--accent); }
   /* במסך צר השורה הזו עלתה על לוח הניקוד, אז היא יורדת אל מתחתיו */
   @media (max-width: 960px) {
     #diff { top: 112px; right: 0; left: 0; padding: 0 12px; text-align: center; }
+    #ctrl { top: 142px; left: 12px; }
   }
 #menu { pointer-events: auto;   /* #hud מבטל לחיצות, והתפריט יושב בתוכו */
         position: fixed; inset: 0; margin: auto; width: 330px; max-height: 92vh; height: fit-content;
@@ -195,6 +204,11 @@
 
   <div id="hint">
     <span id="hintText"></span>
+  </div>
+
+  <div id="ctrl">
+    <button id="bPause" aria-label="השהיה" title="השהיה">⏸</button>
+    <button id="bSound" aria-label="צליל" title="צליל">🔊</button>
   </div>
 </div>
 
@@ -500,7 +514,7 @@ const me = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0 };
 const cpu = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0, think: 0 };
 
 /* ---------------------------------------------------------- audio ---- */
-let audioCtx = null, soundOn = true;
+let audioCtx = null, soundOn = store.get("sound", "1") !== "0";
 function beep(freq, dur, gainPeak, type = "sine") {
   if (!soundOn) return;
   if (!audioCtx) {
@@ -570,7 +584,7 @@ window.addEventListener("keydown", (e) => {
   keys.add(e.code);
   if (e.code === "Space") { e.preventDefault(); action(); }
   if (e.code === "KeyR") resetMatch();
-  if (e.code === "KeyM") { soundOn = !soundOn; }
+  if (e.code === "KeyM") { toggleSound(); }
   if (e.code === "KeyT") { toggleMode(); }
   if (e.code === "KeyO") { openNet(); }
   if (e.code === "KeyP") { togglePause(); }
@@ -804,6 +818,19 @@ function togglePause() {
   game.paused = !game.paused;
   updateHud();
 }
+
+function toggleSound() {
+  soundOn = !soundOn;
+  store.set("sound", soundOn ? "1" : "0");
+  updateHud();
+}
+
+const bPause = document.getElementById("bPause");
+const bSound = document.getElementById("bSound");
+// בלי פוקוס על הכפתורים, אחרת רווח ו-Enter של המשחק היו לוחצים עליהם שוב
+for (const b of [bPause, bSound]) b.addEventListener("mousedown", (e) => e.preventDefault());
+bPause.addEventListener("click", togglePause);
+bSound.addEventListener("click", toggleSound);
 
 function action() {
   if (menuIsOpen()) return;
@@ -1136,6 +1163,10 @@ const elHintText = document.getElementById("hintText");
 function updateHud() {
   // המחבט הוא המצביע תוך כדי משחק, אבל לא בתפריט ולא בהשהיה
   document.body.classList.toggle("playing", !menuIsOpen() && !game.paused);
+  bPause.textContent = game.paused ? "▶" : "⏸";
+  bPause.style.visibility = menuIsOpen() || game.phase === "intro" || game.phase === "over" ? "hidden" : "";
+  bSound.textContent = soundOn ? "🔊" : "🔇";
+  bSound.style.visibility = menuIsOpen() ? "hidden" : "";
 
   el.scoreMe.textContent = game.scoreMe;
   el.scoreCpu.textContent = game.scoreCpu;
