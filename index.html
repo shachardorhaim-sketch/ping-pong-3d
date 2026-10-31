@@ -184,6 +184,7 @@
 
     <div class="mHelp" id="mHelp"></div>
     <button id="mStart">התחל משחק</button>
+    <div style="margin-top:8px;font-size:11px;opacity:.45;text-align:center;">גרסת בוט 3</div>
     <div class="mFoot">ראלי שיא: <b id="mBest">0</b></div>
   </div>
 
@@ -466,9 +467,9 @@ const HALF_L = TABLE_L / 2;
 // err: כמה הוא מפספס את מקום הכדור, והרוחב של המחבט הוא 0.12 לכל צד.
 // slip: הסיכוי לכל מכה לשלוח את הכדור החוצה. spread: כמה פזור הוא מכוון. flight: כמה מהר הכדור שלו.
 const DIFFS = [
-  { name: "קל",    speed: 1.6, react: 0.30, err: 0.085, slip: 0.04,  spread: 0.34, flight: 0.72 },
-  { name: "בינוני", speed: 2.3, react: 0.18, err: 0.058, slip: 0.02,  spread: 0.18, flight: 0.62 },
-  { name: "קשה",   speed: 2.9, react: 0.12, err: 0.040, slip: 0.012, spread: 0.07, flight: 0.54 }
+  { name: "קל",    speed: 1.45, react: 0.30, err: 0.105, slip: 0.05,  spread: 0.34, flight: 0.74 },
+  { name: "בינוני", speed: 1.8, react: 0.24, err: 0.090, slip: 0.04,  spread: 0.18, flight: 0.66 },
+  { name: "קשה",   speed: 2.5, react: 0.14, err: 0.055, slip: 0.02,  spread: 0.07, flight: 0.56 }
 ];
 
 const game = {
@@ -499,7 +500,7 @@ const fx = { shake: 0, flash: 0, trail: [] };
 
 const ball = { p: [0, 0.3, 1.2], v: [0, 0, 0], spin: 0, rot: 0 };
 const me = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0 };
-const cpu = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0, wait: 0, miss: 0 };
+const cpu = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0, wait: 0, miss: 0, missY: 0 };
 
 /* ---------------------------------------------------------- audio ---- */
 let audioCtx = null, soundOn = true;
@@ -931,8 +932,9 @@ function hitByPaddle(pad, padZ, isMe) {
   const d = DIFFS[game.diff];
   const dx = ball.p[0] - pad.x;
   const dy = ball.p[1] - pad.y;
-  const off = Math.hypot(dx, dy);
-  const reach = PAD_R + BALL_R + (isMe ? 0.035 : 0);
+  const human = isMe || game.mode !== "cpu";
+  const off = Math.hypot(dx, human ? dy * 0.5 : dy);
+  const reach = PAD_R + BALL_R + (human ? 0.05 : 0);
   if (off > reach) return false;
 
   const power = 1 - clamp(off / reach, 0, 1) * 0.55;
@@ -941,7 +943,7 @@ function hitByPaddle(pad, padZ, isMe) {
   const T = clamp(baseT * (1.28 - 0.42 * power), 0.36, 0.85);
 
   const dirZ = isMe ? -1 : 1;
-  let aimX = clamp(dx * 5.2 + (isMe ? 0 : (Math.random() - 0.5) * 0.9), -HALF_W + 0.08, HALF_W - 0.08);
+  let aimX = clamp(isMe ? dx * 5.2 : dx * 2 + (Math.random() - 0.5) * 0.9, -HALF_W + 0.08, HALF_W - 0.08);
   if (!isMe) aimX = clamp(aimX + (Math.random() - 0.5) * d.spread * 2, -HALF_W + 0.08, HALF_W - 0.08);
   let aimZ = dirZ * (0.3 + Math.random() * 0.9);
 
@@ -1073,9 +1075,10 @@ function updateOpponent(dt) {
 function cpuReadsShot() {
   const d = DIFFS[game.diff], hit = predictBallX(CPU_Z);
   const far = hit ? Math.abs(hit.x - cpu.x) : 0;
-  let g = 0;
-  for (let i = 0; i < 6; i++) g += Math.random();   // בערך פעמון: רוב הטעויות קטנות
-  cpu.miss = (g - 3) / 0.707 * d.err * (1 + far * 0.4) * (1 + Math.min(game.rallyCount, 30) * 0.03);
+  const bell = () => { let g = 0; for (let i = 0; i < 6; i++) g += Math.random(); return (g - 3) / 0.707; };   // רוב הטעויות קטנות
+  const size = d.err * (1 + far * 0.4) * (1 + Math.min(game.rallyCount, 30) * 0.03);
+  cpu.miss = bell() * size;
+  cpu.missY = bell() * size * 0.5;
   cpu.wait = d.react;
 }
 
@@ -1089,7 +1092,7 @@ function updateCpu(dt) {
       const hit = predictBallX(CPU_Z);
       if (hit) {
         cpu.tx = clamp(hit.x + cpu.miss, -HALF_W - 0.22, HALF_W + 0.22);
-        cpu.ty = clamp(hit.y, 0.05, 0.55);
+        cpu.ty = clamp(hit.y + cpu.missY, 0.05, 0.55);
       }
     }
   } else if (game.phase === "rally") {
