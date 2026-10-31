@@ -462,10 +462,13 @@ const GRAVITY = 7.2;
 const HALF_W = TABLE_W / 2;
 const HALF_L = TABLE_L / 2;
 
+// הבוט טועה כמו בן אדם. speed: מהירות היד. react: כמה שניות עד שהוא מתחיל לזוז.
+// err: כמה הוא מפספס את מקום הכדור, והרוחב של המחבט הוא 0.12 לכל צד.
+// slip: הסיכוי לכל מכה לשלוח את הכדור החוצה. spread: כמה פזור הוא מכוון. flight: כמה מהר הכדור שלו.
 const DIFFS = [
-  { name: "קל",    speed: 2.1, err: 0.34, react: 0.45, flight: 0.72 },
-  { name: "בינוני", speed: 3.2, err: 0.18, react: 0.72, flight: 0.62 },
-  { name: "קשה",   speed: 4.4, err: 0.07, react: 0.92, flight: 0.54 }
+  { name: "קל",    speed: 1.6, react: 0.30, err: 0.085, slip: 0.04,  spread: 0.34, flight: 0.72 },
+  { name: "בינוני", speed: 2.3, react: 0.18, err: 0.058, slip: 0.02,  spread: 0.18, flight: 0.62 },
+  { name: "קשה",   speed: 2.9, react: 0.12, err: 0.040, slip: 0.012, spread: 0.07, flight: 0.54 }
 ];
 
 const game = {
@@ -496,7 +499,7 @@ const fx = { shake: 0, flash: 0, trail: [] };
 
 const ball = { p: [0, 0.3, 1.2], v: [0, 0, 0], spin: 0, rot: 0 };
 const me = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0 };
-const cpu = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0, think: 0 };
+const cpu = { x: 0, y: 0.16, tx: 0, ty: 0.16, tilt: 0, swing: 0, wait: 0, miss: 0 };
 
 /* ---------------------------------------------------------- audio ---- */
 let audioCtx = null, soundOn = true;
@@ -859,6 +862,7 @@ function serve(who) {
   game.lastHit = who;
   game.bounceSide = null;
   game.phase = "rally";
+  if (who === "me") cpuReadsShot();
   sfx.paddle();
   if (who === "me") me.swing = 1; else cpu.swing = 1;
   updateHud();
@@ -938,8 +942,14 @@ function hitByPaddle(pad, padZ, isMe) {
 
   const dirZ = isMe ? -1 : 1;
   let aimX = clamp(dx * 5.2 + (isMe ? 0 : (Math.random() - 0.5) * 0.9), -HALF_W + 0.08, HALF_W - 0.08);
-  if (!isMe) aimX = clamp(aimX + (Math.random() - 0.5) * d.err * 2, -HALF_W + 0.08, HALF_W - 0.08);
-  const aimZ = dirZ * (0.3 + Math.random() * 0.9);
+  if (!isMe) aimX = clamp(aimX + (Math.random() - 0.5) * d.spread * 2, -HALF_W + 0.08, HALF_W - 0.08);
+  let aimZ = dirZ * (0.3 + Math.random() * 0.9);
+
+  // גם הבוט שולח לפעמים החוצה, וככל שהחילוף ארוך יותר זה קורה יותר
+  if (!isMe && game.mode === "cpu" && Math.random() < d.slip * (1 + game.rallyCount * 0.05)) {
+    if (Math.random() < 0.5) aimZ = dirZ * (HALF_L + 0.12 + Math.random() * 0.2);
+    else aimX = (Math.random() < 0.5 ? -1 : 1) * (HALF_W + 0.12 + Math.random() * 0.2);
+  }
 
   ball.p[2] = padZ + dirZ * (BALL_R + 0.005);
   launch(aimX, aimZ, T);
@@ -947,6 +957,7 @@ function hitByPaddle(pad, padZ, isMe) {
 
   game.lastHit = isMe ? "me" : "cpu";
   game.bounceSide = null;
+  if (isMe) cpuReadsShot();
   game.rallyCount++;
   pad.swing = 1;
   fx.shake = Math.min(1, fx.shake + 0.55);
@@ -990,19 +1001,21 @@ function step(dt) {
     }
   }
 
-  // paddles
-  if (ball.v[2] > 0 && prevZ < PLAYER_Z && ball.p[2] >= PLAYER_Z - BALL_R) {
-    if (game.lastHit !== "me") hitByPaddle(me, PLAYER_Z, true);
+  // paddles: כדור שלא נגע בשולחן אצל מי שמקבל אותו הוא אאוט, ולא מחזירים אותו
+  if (ball.v[2] > 0 && prevZ < PLAYER_Z && ball.p[2] >= PLAYER_Z - BALL_R && game.lastHit !== "me") {
+    if (game.bounceSide !== "me") { scorePoint("me"); return; }
+    hitByPaddle(me, PLAYER_Z, true);
   }
-  if (ball.v[2] < 0 && prevZ > CPU_Z && ball.p[2] <= CPU_Z + BALL_R) {
-    if (game.lastHit !== "cpu") hitByPaddle(cpu, CPU_Z, false);
+  if (ball.v[2] < 0 && prevZ > CPU_Z && ball.p[2] <= CPU_Z + BALL_R && game.lastHit !== "cpu") {
+    if (game.bounceSide !== "cpu") { scorePoint("cpu"); return; }
+    hitByPaddle(cpu, CPU_Z, false);
   }
 
-  // out of play
-  if (ball.p[2] > PLAYER_Z + 0.35) { scorePoint("cpu"); return; }
-  if (ball.p[2] < CPU_Z - 0.35) { scorePoint("me"); return; }
-  if (ball.p[1] < -0.55) { scorePoint(ball.p[2] > 0 ? "cpu" : "me"); return; }
-  if (Math.abs(ball.p[0]) > HALF_W + 0.9) { scorePoint(game.lastHit === "me" ? "cpu" : "me"); }
+  // out of play: מי שהכדור שלו נגע בצד של היריב מרוויח את הנקודה, אחרת הוא מפסיד אותה
+  if (ball.p[2] > PLAYER_Z + 0.35 || ball.p[2] < CPU_Z - 0.35 || ball.p[1] < -0.55 || Math.abs(ball.p[0]) > HALF_W + 0.9) {
+    const other = game.lastHit === "me" ? "cpu" : "me";
+    scorePoint(game.bounceSide === other ? game.lastHit : other);
+  }
 }
 
 /* -------------------------------------------------------- ai/aim ---- */
@@ -1056,21 +1069,32 @@ function updateOpponent(dt) {
   if (game.mode === "local") updateP2(dt); else updateCpu(dt);
 }
 
+// הבוט רואה מכה: מחליט פעם אחת כמה הוא טועה בכדור הזה. כדור רחוק או חילוף ארוך קשים לו יותר.
+function cpuReadsShot() {
+  const d = DIFFS[game.diff], hit = predictBallX(CPU_Z);
+  const far = hit ? Math.abs(hit.x - cpu.x) : 0;
+  let g = 0;
+  for (let i = 0; i < 6; i++) g += Math.random();   // בערך פעמון: רוב הטעויות קטנות
+  cpu.miss = (g - 3) / 0.707 * d.err * (1 + far * 0.4) * (1 + Math.min(game.rallyCount, 30) * 0.03);
+  cpu.wait = d.react;
+}
+
 function updateCpu(dt) {
   const d = DIFFS[game.diff];
   const incoming = game.phase === "rally" && ball.v[2] < 0 && game.lastHit === "me";
 
-  cpu.think -= dt;
   if (incoming) {
-    if (cpu.think <= 0) {
+    cpu.wait -= dt;
+    if (cpu.wait <= 0) {
       const hit = predictBallX(CPU_Z);
       if (hit) {
-        cpu.tx = clamp(hit.x + (Math.random() - 0.5) * d.err, -HALF_W - 0.22, HALF_W + 0.22);
+        cpu.tx = clamp(hit.x + cpu.miss, -HALF_W - 0.22, HALF_W + 0.22);
         cpu.ty = clamp(hit.y, 0.05, 0.55);
       }
-      cpu.think = (1 - d.react) * 0.22;
     }
-  } else if (game.phase !== "rally") {
+  } else if (game.phase === "rally") {
+    cpu.tx = lerp(cpu.tx, 0, dt * 1.6);   // אחרי המכה הוא חוזר לכיוון האמצע
+  } else {
     cpu.tx = lerp(cpu.tx, 0, dt * 2);
     cpu.ty = lerp(cpu.ty, 0.16, dt * 2);
   }
